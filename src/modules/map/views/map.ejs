@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <title>Visor MapLibre</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Visor de mapa con MapLibre GL JS" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="/assets/modules/map/views/map.css" />
+</head>
+<body>
+  <div id="progress-overlay" class="progress-overlay hidden">
+    <div class="progress-card">
+      <h2>Procesando tu imagen...</h2>
+      <p id="progress-text">Este proceso puede tardar varios minutos. Por favor, no cierres esta ventana.</p>
+      <div class="progress-track">
+        <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+      </div>
+      <p id="progress-counter" class="progress-counter">0 / 0</p>
+    </div>
+  </div>
+
+  <main class="layout">
+    <header class="hero">
+      <h1>Visor MapLibre</h1>
+      <p>Ruta activa: <strong>/map</strong></p>
+    </header>
+    <section class="map-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h3>Herramientas</h3>
+        </div>
+        
+        <div class="sidebar-section">
+          <label for="date-picker">Fecha Sentinel 2</label>
+          <input type="date" id="date-picker" class="form-control" />
+        </div>
+
+        <div class="sidebar-section">
+          <h4>Herramienta de selección</h4>
+          <div class="tool-buttons">
+            <button id="draw-rectangle" class="tool-btn" title="Dibujar rectángulo">
+              <svg width="20" height="20" viewBox="0 0 20 20">
+                <rect x="3" y="4" width="14" height="12" stroke="currentColor" stroke-width="2" fill="none"/>
+              </svg>
+              Rectángulo
+            </button>
+            <button id="delete-all" class="tool-btn danger" title="Limpiar">
+              <svg width="20" height="20" viewBox="0 0 20 20">
+                <path d="M6 2h8v2H6V2zm-2 4h12v12H4V6zm3 2v8h2V8H7zm4 0v8h2V8h-2z" fill="currentColor"/>
+              </svg>
+              Limpiar
+            </button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <label>Geometría capturada</label>
+          <textarea id="geometry-output" class="geometry-display" rows="6" readonly placeholder="La geometría aparecerá aquí..."></textarea>
+        </div>
+
+        <div class="sidebar-section">
+          <button id="capture-btn" class="capture-btn">
+            <svg width="18" height="18" viewBox="0 0 20 20">
+              <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11h-2V9h2v4zm0-5h-2V6h2v2z" fill="currentColor"/>
+            </svg>
+            Capturar y procesar
+          </button>
+        </div>
+      </aside>
+      
+      <div
+        id="<%= mapConfig.containerId %>"
+        class="map"
+        data-tile-url="<%= mapConfig.tileUrl %>"
+        data-center='<%- JSON.stringify(mapConfig.center) %>'
+        data-zoom="<%= mapConfig.zoom %>"
+        data-logo="<%= mapConfig.maplibreLogo %>">
+      </div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
+  <script src="/assets/modules/map/views/map.js"></script>
+</body>
+</html>
