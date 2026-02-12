@@ -57,7 +57,8 @@ const renderMapResult = (req, res) => {
       tileUrl: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
       maplibreLogo: false
     },
-    resultData: job.result
+    resultData: job.result,
+    jobId: jobId
   });
 };
 

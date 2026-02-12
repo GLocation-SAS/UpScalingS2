@@ -2,10 +2,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const mapElement = document.getElementById('map');
   if (!mapElement) return;
 
+  // Leemos los datos directamente de los atributos data-* del DOM
   const tileUrl = mapElement.dataset.tileUrl;
   const bounds = JSON.parse(mapElement.dataset.bounds);
   const originalUrl = mapElement.dataset.originalUrl;
   const improvedUrl = mapElement.dataset.improvedUrl;
+
+  // Verificación de seguridad: si alguna URL es undefined, detenemos la ejecución.
+  if (!originalUrl || !improvedUrl) {
+    console.error("Error: Las URLs de las imágenes no se encontraron en los atributos del DOM.");
+    alert("Error: No se pudieron cargar las URLs de las imágenes para el mapa.");
+    return;
+  }
 
   const map = new maplibregl.Map({
     container: 'map',
@@ -20,17 +28,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   map.on('load', () => {
     const imageCoordinates = [
-      [bounds[0][0], bounds[1][1]], // Top-Left   (minLng, maxLat)
-      bounds[1],                   // Top-Right  (maxLng, maxLat)
-      [bounds[1][0], bounds[0][1]], // Bottom-Right (maxLng, minLat)
-      bounds[0]                    // Bottom-Left (minLng, minLat)
+      [bounds[0][0], bounds[1][1]], // Top-Left
+      bounds[1],                   // Top-Right
+      [bounds[1][0], bounds[0][1]], // Bottom-Right
+      bounds[0]                    // Bottom-Left
     ];
 
-    // Añadir la imagen original como una capa
+    // Añadir la imagen original
     map.addSource('original-image-source', {
       type: 'image',
       url: originalUrl,
-      coordinates: imageCoordinates // Usar las coordenadas corregidas
+      coordinates: imageCoordinates
     });
     map.addLayer({
       id: 'original-image-layer',
@@ -40,11 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
       layout: { 'visibility': 'none' }
     });
 
-    // Añadir la imagen mejorada como una capa
+    // Añadir la imagen mejorada
     map.addSource('improved-image-source', {
       type: 'image',
       url: improvedUrl,
-      coordinates: imageCoordinates // Usar las coordenadas corregidas
+      coordinates: imageCoordinates
     });
     map.addLayer({
       id: 'improved-image-layer',
