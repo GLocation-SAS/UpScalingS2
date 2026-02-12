@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const mapElement = document.getElementById('map');
   if (!mapElement) return;
 
-  // Leer datos pasados desde el servidor a través de atributos data-*
   const tileUrl = mapElement.dataset.tileUrl;
   const bounds = JSON.parse(mapElement.dataset.bounds);
   const originalUrl = mapElement.dataset.originalUrl;
@@ -20,49 +19,45 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   map.on('load', () => {
+    const imageCoordinates = [
+      [bounds[0][0], bounds[1][1]], // Top-Left   (minLng, maxLat)
+      bounds[1],                   // Top-Right  (maxLng, maxLat)
+      [bounds[1][0], bounds[0][1]], // Bottom-Right (maxLng, minLat)
+      bounds[0]                    // Bottom-Left (minLng, minLat)
+    ];
+
     // Añadir la imagen original como una capa
     map.addSource('original-image-source', {
       type: 'image',
       url: originalUrl,
-      coordinates: [
-        bounds[0], // Suroeste
-        [bounds[1][0], bounds[0][1]], // Sureste
-        bounds[1], // Noreste
-        [bounds[0][0], bounds[1][1]]  // Noroeste
-      ]
+      coordinates: imageCoordinates // Usar las coordenadas corregidas
     });
     map.addLayer({
       id: 'original-image-layer',
       type: 'raster',
       source: 'original-image-source',
       paint: { 'raster-opacity': 1 },
-      layout: { 'visibility': 'none' } // Oculta por defecto
+      layout: { 'visibility': 'none' }
     });
 
     // Añadir la imagen mejorada como una capa
     map.addSource('improved-image-source', {
       type: 'image',
       url: improvedUrl,
-      coordinates: [
-        bounds[0],
-        [bounds[1][0], bounds[0][1]],
-        bounds[1],
-        [bounds[0][0], bounds[1][1]]
-      ]
+      coordinates: imageCoordinates // Usar las coordenadas corregidas
     });
     map.addLayer({
       id: 'improved-image-layer',
       type: 'raster',
       source: 'improved-image-source',
       paint: { 'raster-opacity': 1 },
-      layout: { 'visibility': 'visible' } // Visible por defecto
+      layout: { 'visibility': 'visible' }
     });
 
-    // Ajustar el mapa a los límites de la imagen
     map.fitBounds(bounds, { padding: 40 });
   });
 
-  // Lógica para los controles de capa
+  // Lógica para los controles de capa (sin cambios)
   document.querySelectorAll('input[name="layer-toggle"]').forEach(radio => {
     radio.addEventListener('change', (event) => {
       const selectedValue = event.target.value;
@@ -71,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Lógica para el slider de opacidad
+  // Lógica para el slider de opacidad (sin cambios)
   const opacitySlider = document.getElementById('opacity-slider');
   opacitySlider.addEventListener('input', (event) => {
     const opacity = parseFloat(event.target.value);

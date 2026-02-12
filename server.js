@@ -8,6 +8,7 @@ const FormData = require('form-data');
 const fetch = require('node-fetch');
 const { Storage } = require('@google-cloud/storage');
 const mapRoutes = require('./src/modules/map/map.routes.js');
+const { fromArrayBuffer } = require('geotiff');
 
 
 const storage = new Storage();
@@ -44,12 +45,12 @@ app.use((req, res, next) => {
         'Content-Security-Policy',
         "default-src 'self'; " +
         "script-src 'self' https://unpkg.com blob:; " +
-        "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; " + 
-        "font-src 'self' https://fonts.gstatic.com; " + 
-        "connect-src 'self' https://mt1.google.com https://storage.googleapis.com https://unpkg.com; " + 
-        "img-src 'self' data: https://storage.googleapis.com https://mt1.google.com; " + 
+        "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; " +
+        "font-src 'self' https://fonts.gstatic.com; " +
+        "connect-src 'self' https://mt1.google.com https://storage.googleapis.com https://unpkg.com; " +
+        "img-src 'self' data: https://storage.googleapis.com https://mt1.google.com; " +
         "frame-src 'self';" +
-        "worker-src 'self' blob:;" 
+        "worker-src 'self' blob:;"
     );
     next();
 });
@@ -182,20 +183,32 @@ function updateJobProgress(jobId, progress) {
 
 async function processUpscale(jobId, file) {
     try {
-        const bounds = [
-            [-74.20, 4.60], // Suroeste (min Longitude, min Latitude)
-            [-74.00, 4.80]  // Noreste (max Longitude, max Latitude)
-        ];
-        console.log(`[DEBUG] Coordenadas (simuladas):`, bounds);
+        updateJobProgress(jobId, { message: "Leyendo metadatos GeoTIFF..." });
+
+        // --- CORRECCIÓN DEFINITIVA: Convertir Buffer a ArrayBuffer y usar fromArrayBuffer ---
+        const arrayBuffer = file.buffer.buffer.slice(
+            file.buffer.byteOffset,
+            file.buffer.byteOffset + file.buffer.byteLength
+        );
+        const tiff = await fromArrayBuffer(arrayBuffer);
+
+        const image = await tiff.getImage();
+        const bbox = image.getBoundingBox();
+        const realBounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
+
+        console.log(`[GeoTIFF] Coordenadas reales extraídas:`, realBounds);
+
         const TILE_SIZE = 1024;
-        const image = sharp(file.buffer);
-        updateJobProgress(jobId, { message: "Convirtiendo TIF a JPEG..." });
-        const jpegBuffer = await image.jpeg({ quality: 90 }).toBuffer();
+        const sharpImage = sharp(file.buffer);
+        const jpegBuffer = await sharpImage.jpeg({ quality: 90 }).toBuffer();
+
         const originalJpegPath = `${BUCKET_BASE_PATH}/original_jpeg/${jobId}.jpeg`;
         await uploadToDocs(jpegBuffer, originalJpegPath);
         const originalPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${originalJpegPath}`;
+
         const jpegImage = sharp(jpegBuffer);
         const { width, height } = await jpegImage.metadata();
+
         const tiles = [];
         for (let y = 0; y < height; y += TILE_SIZE) {
             for (let x = 0; x < width; x += TILE_SIZE) {
@@ -204,9 +217,8 @@ async function processUpscale(jobId, file) {
         }
         updateJobProgress(jobId, { total: tiles.length, processed: 0 });
 
-        // --- CAMBIO 1: Bucle de subida de originales con progreso incremental ---
         let originalsUploaded = 0;
-        const originalUploadPromises = tiles.map(async (tile, i) => {
+        const originalUploadPromises = tiles.map(async (tile) => {
             const tileBuffer = await jpegImage.extract({ left: tile.x, top: tile.y, width: tile.width, height: tile.height }).toBuffer();
             const destPath = `${BUCKET_BASE_PATH}/grillas_originales/${jobId}/tile_${tile.x}_${tile.y}.jpeg`;
             const gsPath = await uploadToDocs(tileBuffer, destPath);
@@ -216,8 +228,6 @@ async function processUpscale(jobId, file) {
         });
         const originalGsPaths = await Promise.all(originalUploadPromises);
 
-
-        // --- CAMBIO 2: Bucle de mejora con IA con progreso incremental ---
         let tilesImproved = 0;
         updateJobProgress(jobId, { message: `Mejorando grillas con IA...`, processed: 0 });
         const upgradePromises = originalGsPaths.map(gsPath =>
@@ -229,25 +239,20 @@ async function processUpscale(jobId, file) {
         );
         const upgradedResults = await Promise.all(upgradePromises);
 
-
-        // --- CAMBIO 3: Bucle de ensamblaje con progreso incremental ---
         let tilesAssembled = 0;
-        updateJobProgress(jobId, { message: `Analizando y ensamblando imagen final...`, processed: 0 });
+        updateJobProgress(jobId, { message: `Analizando y guardando resultados...`, processed: 0 });
         const inspectionPromises = upgradedResults.map(async (tileInfo, i) => {
             const response = await fetch(tileInfo.public_url);
             const buffer = await response.buffer();
             const improvedTileDestPath = `${BUCKET_BASE_PATH}/grillas_mejoradas/${jobId}/tile_${tiles[i].x}_${tiles[i].y}.png`;
-            // Ejecutamos la subida en segundo plano, no necesitamos esperarla para continuar
-            uploadToDocs(buffer, improvedTileDestPath).catch(err => console.error(`Failed to upload improved tile: ${err.message}`));
+            uploadToDocs(buffer, improvedTileDestPath).catch(err => console.error(`Fallo al subir grilla mejorada: ${err.message}`));
             const metadata = await sharp(buffer).metadata();
             tilesAssembled++;
-            updateJobProgress(jobId, { message: `Analizando grilla ${tilesAssembled}/${tiles.length}`, processed: tilesAssembled });
+            updateJobProgress(jobId, { message: `Analizando resultado ${tilesAssembled}/${tiles.length}`, processed: tilesAssembled });
             return { buffer, originalX: tiles[i].x, originalY: tiles[i].y, width: metadata.width, height: metadata.height };
         });
         const inspectedTiles = await Promise.all(inspectionPromises);
 
-
-        // --- Lógica de cálculo de dimensiones y ensamblaje final (SIN CAMBIOS) ---
         const columnWidths = {}; const rowHeights = {};
         inspectedTiles.forEach(tile => { columnWidths[tile.originalX] = Math.max(columnWidths[tile.originalX] || 0, tile.width); rowHeights[tile.originalY] = Math.max(rowHeights[tile.originalY] || 0, tile.height); });
         const finalWidth = Object.values(columnWidths).reduce((sum, w) => sum + w, 0); const finalHeight = Object.values(rowHeights).reduce((sum, h) => sum + h, 0);
@@ -255,24 +260,31 @@ async function processUpscale(jobId, file) {
         const positionMap = { x: {}, y: {} }; let currentLeft = 0; xCoords.forEach(x => { positionMap.x[x] = currentLeft; currentLeft += columnWidths[x]; }); let currentTop = 0; yCoords.forEach(y => { positionMap.y[y] = currentTop; currentTop += rowHeights[y]; });
         const compositeArray = inspectedTiles.map(tile => ({ input: tile.buffer, left: positionMap.x[tile.originalX], top: positionMap.y[tile.originalY] }));
 
-        updateJobProgress(jobId, { message: 'Creando archivo TIF final...' });
-        const finalImageBuffer = await sharp({ create: { width: finalWidth, height: finalHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite(compositeArray).tiff({ quality: 100, compression: 'lzw' }).toBuffer();
+        updateJobProgress(jobId, { message: 'Generando archivos finales...' });
+        const finalCompositeImage = sharp({
+            create: { width: finalWidth, height: finalHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+        }).composite(compositeArray);
 
-        updateJobProgress(jobId, { message: 'Subiendo resultado final...' });
-        const finalDestPath = `${BUCKET_BASE_PATH}/resultados_finales/${jobId}.tif`;
-        const finalGsPath = await uploadToDocs(finalImageBuffer, finalDestPath);
-        const improvedPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${finalDestPath}`;
+        const finalTifBuffer = await finalCompositeImage.clone().tiff({ quality: 100, compression: 'lzw' }).toBuffer();
+        const finalTifDestPath = `${BUCKET_BASE_PATH}/resultados_finales/${jobId}.tif`;
+        await uploadToDocs(finalTifBuffer, finalTifDestPath);
 
-        console.log(`Proceso completado para ${jobId}. Resultado: ${finalGsPath}`);
+        const finalPngBuffer = await finalCompositeImage.clone().png().toBuffer();
+        const finalPngDestPath = `${BUCKET_BASE_PATH}/resultados_previsualizacion/${jobId}.png`;
+        await uploadToDocs(finalPngBuffer, finalPngDestPath);
+
+        const improvedPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${finalPngDestPath}`;
+
+        console.log(`Proceso completado para ${jobId}.`);
         jobs[jobId].result = {
             improvedUrl: improvedPublicUrl,
             originalUrl: originalPublicUrl,
-            bounds: bounds
+            bounds: realBounds
         };
         updateJobProgress(jobId, {
             status: 'complete',
             message: '¡Proceso completado!',
-            processed: tiles.length, // Aseguramos que el contador esté al máximo
+            processed: tiles.length,
             total: tiles.length
         });
     } catch (error) {
