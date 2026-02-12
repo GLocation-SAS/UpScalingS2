@@ -3,16 +3,22 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/Favicon.png" />
+  <link rel="icon" type="image/svg+xml" href="/public/img/Favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>UpScalingS2</title>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+  <!-- <link rel="stylesheet" href="/css/input.css"> -->
+  <!-- <link rel="stylesheet" href="/css/style.css"> -->
+  <link rel="stylesheet" href="/css/output.css">
 </head>
 
-<body class="relative bg-slate-200 dark:bg-primary/50 min-h-screen flex flex-col transition-colors duration-300 overflow-x-hidden">
+<body
+  class="relative bg-slate-200 dark:bg-primary/50 min-h-screen flex flex-col transition-colors duration-300 overflow-x-hidden">
   <!-- Fondo  -->
   <div class="absolute inset-0 z-0 pointer-events-none opacity-20 dark:opacity-30">
-    <div class="absolute inset-0 bg-[radial-gradient(#1f618c_1px,transparent_1px)] [background-size:40px_40px] dark:bg-[radial-gradient(#65a7db_1px,transparent_1px)] [background-size:40px_40px]"></div>
+    <div
+      class="absolute inset-0 bg-[radial-gradient(#1f618c_1px,transparent_1px)] [background-size:40px_40px] dark:bg-[radial-gradient(#65a7db_1px,transparent_1px)] [background-size:40px_40px]">
+    </div>
     <div class="absolute top-20 left-[10%] text-primary animate-float" style="animation-delay: 0s;">
       <span class="material-icons-round text-8xl">satellite_alt</span>
     </div>
@@ -25,16 +31,19 @@
     <div class="absolute bottom-1/4 right-[15%] text-tertiary opacity-50 animate-drift" style="animation-delay: 0.5s;">
       <span class="material-icons-round text-8xl">travel_explore</span>
     </div>
-    <svg class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full min-w-[1000px] min-h-[1000px]" viewBox="0 0 1000 1000" aria-hidden="true">
-      <circle class="text-primary/20" cx="500" cy="500" fill="none" r="300" stroke="currentColor" stroke-dasharray="10 20" stroke-width="1"></circle>
-      <circle class="text-secondary/20" cx="500" cy="500" fill="none" r="450" stroke="currentColor" stroke-dasharray="5 15" stroke-width="1"></circle>
+    <svg class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full min-w-[1000px] min-h-[1000px]"
+      viewBox="0 0 1000 1000" aria-hidden="true">
+      <circle class="text-primary/20" cx="500" cy="500" fill="none" r="300" stroke="currentColor"
+        stroke-dasharray="10 20" stroke-width="1"></circle>
+      <circle class="text-secondary/20" cx="500" cy="500" fill="none" r="450" stroke="currentColor"
+        stroke-dasharray="5 15" stroke-width="1"></circle>
     </svg>
   </div>
 
   <header class="relative z-10 p-6 flex justify-between items-center w-full max-w-7xl mx-auto">
     <div class="flex items-center gap-2 group cursor-pointer relative">
-      <img src="/public/img/Logo Horizontal.png" alt="UpScalingS2" class="w-36 h-12 dark:hidden" />
-      <img src="/public/img/Logo Horizonal Blanco.png" alt="UpScalingS2" class="w-36 h-12 hidden dark:block" />
+      <img src="/public/img/Logo_Horizontal.png" alt="UpScalingS2" class="w-36 h-12 dark:hidden" />
+      <img src="/public/img/Logo_Horizonal_Blanco.png" alt="UpScalingS2" class="w-36 h-12 hidden dark:block" />
     </div>
     <button class="p-2 flex rounded-full text-primary px-5  bg-secondary/30 dark:text-white transition-colors"
       onclick="document.documentElement.classList.toggle('dark')">
@@ -132,7 +141,8 @@
 
 
 
-  <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/js/main.js"></script>
+  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
 </body>
 
 </html>

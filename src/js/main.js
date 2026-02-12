@@ -1,6 +1,3 @@
-import './input.css';
-import './style.css';
-
 /** URL del archivo cargado (para revocar y liberar memoria al volver). */
 let loadedFileUrl = null;
 
