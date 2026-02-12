@@ -43,6 +43,7 @@
     "form-data": "^4.0.5",
     "fraction.js": "^5.3.4",
     "function-bind": "^1.1.2",
+    "geotiff": "^3.0.3",
     "glob-parent": "^6.0.2",
     "hasown": "^2.0.2",
     "is-binary-path": "^2.1.0",
