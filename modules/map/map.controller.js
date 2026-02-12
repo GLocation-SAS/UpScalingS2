@@ -43,13 +43,12 @@ const getGeeImageUrl = async (req, res) => {
 };
 
 const renderMapResult = (req, res) => {
-  // Tomamos 'jobs' del objeto de la petición, que fue añadido por el middleware
   const { jobs } = req;
   const { jobId } = req.params;
   const job = jobs[jobId];
 
   if (!job || !job.result) {
-    return res.status(404).send('Resultado no encontrado o aún en proceso. Por favor, vuelve a la página anterior.');
+    return res.status(404).send('Resultado no encontrado o aún en proceso.');
   }
 
   res.render('map/views/map-viewer', {
@@ -58,7 +57,8 @@ const renderMapResult = (req, res) => {
       tileUrl: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
       maplibreLogo: false
     },
-    resultData: job.result
+    resultData: job.result,
+    jobId: jobId
   });
 };
 

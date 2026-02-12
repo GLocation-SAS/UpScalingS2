@@ -240,3 +240,39 @@ body {
 .slider {
   width: 100%;
 }
+
+.download-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.download-btn {
+  display: block;
+  padding: 12px;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid #dbe6f5;
+  background: #f8fbff;
+  color: #3f4a5e;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.download-btn:hover {
+  background: #eef7ff;
+  border-color: #4f83ff;
+  color: #1f3b6d;
+}
+
+.download-btn.primary {
+  background: #4f83ff;
+  border-color: #4f83ff;
+  color: #ffffff;
+}
+
+.download-btn.primary:hover {
+  background: #3d6fd9;
+}

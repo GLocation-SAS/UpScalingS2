@@ -251,20 +251,23 @@ async function processUpscale(jobId, file) {
             create: { width: finalWidth, height: finalHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
         }).composite(compositeArray);
 
+        // Generar y subir el TIF para descarga
         const finalTifBuffer = await finalCompositeImage.clone().tiff({ quality: 100, compression: 'lzw' }).toBuffer();
         const finalTifDestPath = `${BUCKET_BASE_PATH}/resultados_finales/${jobId}.tif`;
         await uploadToDocs(finalTifBuffer, finalTifDestPath);
+        const finalTifPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${finalTifDestPath}`;
 
+        // Generar y subir el PNG para visualización en el mapa
         const finalPngBuffer = await finalCompositeImage.clone().png().toBuffer();
         const finalPngDestPath = `${BUCKET_BASE_PATH}/resultados_previsualizacion/${jobId}.png`;
         await uploadToDocs(finalPngBuffer, finalPngDestPath);
-
-        const improvedPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${finalPngDestPath}`;
+        const improvedPngPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${finalPngDestPath}`;
 
         console.log(`Proceso completado para ${jobId}.`);
         jobs[jobId].result = {
-            improvedUrl: improvedPublicUrl,
-            originalUrl: originalPublicUrl,
+            improvedPngUrl: improvedPngPublicUrl,
+            improvedTifUrl: finalTifPublicUrl,
+            originalJpegUrl: originalPublicUrl,
             bounds: realBounds
         };
         updateJobProgress(jobId, {
