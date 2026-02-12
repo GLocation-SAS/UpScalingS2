@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <title>Resultado | UpScalingS2</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="/modules/map/views/map-viewer.css" />
+</head>
+
+<body>
+  <main class="layout">
+    <section class="map-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h3>Visor de Resultados</h3>
+        </div>
+
+        <div class="sidebar-section">
+          <h4>Control de Capas</h4>
+          <div class="layer-switcher">
+            <input type="radio" id="view-improved" name="layer-toggle" value="improved" checked>
+            <label for="view-improved">Imagen Mejorada (IA)</label>
+          </div>
+          <div class="layer-switcher">
+            <input type="radio" id="view-original" name="layer-toggle" value="original">
+            <label for="view-original">Imagen Original (Sentinel-2)</label>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <h4>Opacidad de la capa superior</h4>
+          <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1" class="slider">
+        </div>
+
+        <div class="sidebar-section">
+          <a href="/" class="back-btn">Procesar otra imagen</a>
+        </div>
+      </aside>
+
+      <div id="<%= mapConfig.containerId %>" class="map" data-tile-url="<%= mapConfig.tileUrl %>"
+        data-logo="<%= mapConfig.maplibreLogo %>" data-bounds='<%- JSON.stringify(resultData.bounds) %>'
+        data-original-url="<%= resultData.originalUrl %>" data-improved-url="<%= resultData.improvedUrl %>"></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
+  <script src="/modules/map/views/map-viewer.js"></script>
+</body>
+
+</html>

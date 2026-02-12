@@ -584,6 +584,10 @@ button:focus, button:focus-visible {
   pointer-events: none;
 }
 
+.fixed {
+  position: fixed;
+}
+
 .absolute {
   position: absolute;
 }
@@ -648,6 +652,10 @@ button:focus, button:focus-visible {
   z-index: 10;
 }
 
+.z-50 {
+  z-index: 50;
+}
+
 .mx-auto {
   margin-left: auto;
   margin-right: auto;
@@ -655,6 +663,10 @@ button:focus, button:focus-visible {
 
 .mb-4 {
   margin-bottom: 1rem;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
 }
 
 .mt-2\.5 {
@@ -675,6 +687,10 @@ button:focus, button:focus-visible {
 
 .h-12 {
   height: 3rem;
+}
+
+.h-4 {
+  height: 1rem;
 }
 
 .h-\[45px\] {
@@ -816,6 +832,10 @@ button:focus, button:focus-visible {
   margin-bottom: calc(1.5rem * var(--tw-space-y-reverse));
 }
 
+.overflow-hidden {
+  overflow: hidden;
+}
+
 .overflow-x-hidden {
   overflow-x: hidden;
 }
@@ -890,6 +910,10 @@ button:focus, button:focus-visible {
 .bg-slate-200 {
   --tw-bg-opacity: 1;
   background-color: rgb(226 232 240 / var(--tw-bg-opacity, 1));
+}
+
+.bg-slate-900\/80 {
+  background-color: rgb(15 23 42 / 0.8);
 }
 
 .bg-tertiary {
@@ -978,6 +1002,10 @@ button:focus, button:focus-visible {
   text-align: center;
 }
 
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 .text-2xl {
   font-size: 1.5rem;
   line-height: 2rem;
@@ -1051,6 +1079,10 @@ button:focus, button:focus-visible {
   color: rgb(31 97 140 / 0.2);
 }
 
+.text-primary\/80 {
+  color: rgb(31 97 140 / 0.8);
+}
+
 .text-secondary {
   --tw-text-opacity: 1;
   color: rgb(101 167 219 / var(--tw-text-opacity, 1));
@@ -1082,6 +1114,12 @@ button:focus, button:focus-visible {
   opacity: 0.5;
 }
 
+.shadow-2xl {
+  --tw-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --tw-shadow-colored: 0 25px 50px -12px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
 .shadow-sm {
   --tw-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --tw-shadow-colored: 0 1px 2px 0 var(--tw-shadow-color);
@@ -1091,6 +1129,11 @@ button:focus, button:focus-visible {
 .blur {
   --tw-blur: blur(8px);
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+.backdrop-blur-sm {
+  --tw-backdrop-blur: blur(4px);
+  backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
 }
 
 .transition {
@@ -1222,6 +1265,14 @@ button:focus, button:focus-visible {
   background-color: rgb(31 97 140 / 0.5);
 }
 
+.dark\:bg-primary\/90:is(.dark *) {
+  background-color: rgb(31 97 140 / 0.9);
+}
+
+.dark\:bg-white\/10:is(.dark *) {
+  background-color: rgb(255 255 255 / 0.1);
+}
+
 .dark\:bg-white\/20:is(.dark *) {
   background-color: rgb(255 255 255 / 0.2);
 }
@@ -1245,6 +1296,10 @@ button:focus, button:focus-visible {
 
 .dark\:text-white\/40:is(.dark *) {
   color: rgb(255 255 255 / 0.4);
+}
+
+.dark\:text-white\/70:is(.dark *) {
+  color: rgb(255 255 255 / 0.7);
 }
 
 .dark\:text-white\/80:is(.dark *) {

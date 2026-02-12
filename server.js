@@ -1,257 +1,412 @@
-const http = require('http');
-const https = require('https');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
+const { randomUUID } = require('crypto');
+const FormData = require('form-data');
+const fetch = require('node-fetch');
+const { Storage } = require('@google-cloud/storage');
+const mapRoutes = require('./modules/map/map.routes.js');
 
+
+const storage = new Storage();
+const app = express();
 const PORT = process.env.PORT || 8080;
 
 const URLS = {
     token: 'https://gentoken-960956212831.us-central1.run.app',
     upload: 'https://uss2-upload-960956212831.us-central1.run.app',
+    upscale: 'https://uss2-image-upgrade-960956212831.us-central1.run.app',
 };
 
-const BUCKET_NAME = "uss2-images/sentinel";
+const BUCKET_NAME = "uss2-images";
+const BUCKET_BASE_PATH = "sentinel";
 
-// HELPERS HTTP
-function makeHttpRequest(url, options, bodyBuffer = null) {
-    const protocol = url.startsWith('https') ? https : http;
+const jobs = {};
+
+app.use((req, res, next) => {
+    req.jobs = jobs;
+    next();
+});
+
+// --- MIDDLEWARE DE EXPRESS ---
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'src'));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'src')));
+app.set('views', path.join(__dirname, 'modules'));
+app.use('/modules', express.static(path.join(__dirname, 'modules')));
+
+app.use((req, res, next) => {
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; " +
+        "script-src 'self' https://unpkg.com blob:; " +
+        "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; " + 
+        "font-src 'self' https://fonts.gstatic.com; " + 
+        "connect-src 'self' https://mt1.google.com https://storage.googleapis.com https://unpkg.com; " + 
+        "img-src 'self' data: https://storage.googleapis.com https://mt1.google.com; " + 
+        "frame-src 'self';" +
+        "worker-src 'self' blob:;" 
+    );
+    next();
+});
+// --- HELPERS (Solo parseo de la petición entrante) ---
+async function parseJsonBody(req) {
     return new Promise((resolve, reject) => {
-        const req = protocol.request(url, options, (res) => {
-            const chunks = [];
-            res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => {
-                const responseBody = Buffer.concat(chunks).toString('utf8');
-                resolve({ statusCode: res.statusCode, body: responseBody, headers: res.headers });
-            });
+        let body = '';
+        req.on('data', chunk => body += chunk.toString());
+        req.on('end', () => {
+            try {
+                resolve(JSON.parse(body));
+            } catch (e) {
+                reject(new Error('Cuerpo de la petición JSON inválido.'));
+            }
         });
-
-        req.on('error', (err) => {
-            console.error(`Error de red hacia ${url}:`, err.message);
-            reject(err);
-        });
-
-        if (bodyBuffer) {
-            req.end(bodyBuffer);
-        } else {
-            req.end();
-        }
     });
+}
+
+async function downloadFromGCS(gsPath) {
+    const match = gsPath.match(/^gs:\/\/([^\/]+)\/(.+)$/);
+    if (!match) throw new Error('Ruta GSUtil inválida.');
+
+    const bucketName = match[1];
+    const filePath = match[2];
+
+    console.log(`Descargando de gs://${bucketName}/${filePath}`);
+    const [fileBuffer] = await storage.bucket(bucketName).file(filePath).download();
+    return fileBuffer;
 }
 
 function bufferSplit(buffer, separator) {
-    const res = [];
-    let start = 0;
-    let index = 0;
-    while ((index = buffer.indexOf(separator, start)) !== -1) {
+    const res = []; let start = 0;
+    while (true) {
+        const index = buffer.indexOf(separator, start);
+        if (index === -1) { res.push(buffer.subarray(start)); break; }
         res.push(buffer.subarray(start, index));
         start = index + separator.length;
     }
-    res.push(buffer.subarray(start));
     return res;
 }
-
-// PARSER MULTIPART
 function parseMultipartIncoming(req) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const chunks = [];
         req.on('data', chunk => chunks.push(chunk));
         req.on('end', () => {
-            const buffer = Buffer.concat(chunks);
-            const contentType = req.headers['content-type'] || '';
-
-            if (!contentType.includes('boundary=')) return resolve({ fields: {}, files: [] });
-
-            let boundary = contentType.split('boundary=')[1];
-            if (boundary.includes(';')) boundary = boundary.split(';')[0];
-            boundary = boundary.trim();
-
-            const separator = Buffer.from(`--${boundary}`);
-            const parts = bufferSplit(buffer, separator);
-
-            const fields = {};
-            const files = [];
-
-            parts.forEach(part => {
-                const headerEnd = part.indexOf(Buffer.from('\r\n\r\n'));
-                if (headerEnd === -1) return;
-
-                const headers = part.subarray(0, headerEnd).toString();
-                const bodyStart = headerEnd + 4;
-                let bodyEnd = part.length;
-                if (part.length > 2 && part[part.length - 2] === 13) bodyEnd -= 2;
-
-                const content = part.subarray(bodyStart, bodyEnd);
-
-                const nameMatch = headers.match(/name="([^"]+)"/);
-                const filenameMatch = headers.match(/filename="([^"]+)"/);
-
-                if (filenameMatch) {
-                    files.push({ filename: filenameMatch[1], buffer: content });
-                } else if (nameMatch) {
-                    fields[nameMatch[1]] = content.toString().trim();
+            try {
+                const buffer = Buffer.concat(chunks);
+                const contentType = req.headers['content-type'] || '';
+                if (!contentType.includes('boundary=')) return resolve({ fields: {}, files: [] });
+                const boundary = `--${contentType.split('boundary=')[1]}`;
+                const parts = bufferSplit(buffer, Buffer.from(boundary));
+                const files = [];
+                for (const part of parts) {
+                    const headerEndIndex = part.indexOf('\r\n\r\n');
+                    if (headerEndIndex === -1) continue;
+                    const headers = part.subarray(0, headerEndIndex).toString();
+                    const filenameMatch = headers.match(/filename="([^"]+)"/);
+                    if (filenameMatch) {
+                        const content = part.subarray(headerEndIndex + 4, part.length - 2);
+                        files.push({ filename: filenameMatch[1], buffer: content });
+                    }
                 }
-            });
-            resolve({ fields, files });
+                resolve({ fields: {}, files });
+            } catch (err) { reject(err); }
         });
     });
 }
 
-// FUNCIONES DE SERVICIO
-async function uploadToDocs(file) {
-    const boundary = 'NodeBoundary' + Date.now();
-    const crlf = '\r\n';
-
-    const head = `--${boundary}${crlf}Content-Disposition: form-data; name="files"; filename="${file.filename}"${crlf}Content-Type: application/octet-stream${crlf}${crlf}`;
-    const foot = `${crlf}--${boundary}--${crlf}`;
-
-    const payload = Buffer.concat([Buffer.from(head), file.buffer, Buffer.from(foot)]);
-
-    const res = await makeHttpRequest(`${URLS.upload}?action=upload`, {
+// --- FUNCIONES DE SERVICIO REESCRITAS CON node-fetch (Correctas) ---
+async function uploadToDocs(fileBuffer, destinationPath) {
+    const form = new FormData();
+    form.append('destinationPath', destinationPath);
+    form.append('files', fileBuffer, { filename: path.basename(destinationPath) });
+    const response = await fetch(`${URLS.upload}?action=upload`, {
         method: 'POST',
-        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': payload.length }
-    }, payload);
+        body: form
+    });
 
-    if (res.statusCode !== 200) throw new Error(`Upload error (${res.statusCode}): ${res.body}`);
-    return `gs://${BUCKET_NAME}/${file.filename}`;
-}
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Upload error (${response.status}): ${errorBody}`);
+    }
 
-async function deleteFromDocs(gsPath) {
-    if (!gsPath) return;
-    const jsonString = JSON.stringify({ path: gsPath });
-    const payloadBuffer = Buffer.from(jsonString, 'utf8');
-    try {
-        await makeHttpRequest(`${URLS.upload}?action=delete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': payloadBuffer.length }
-        }, payloadBuffer);
-    } catch (e) { console.error(`Delete error: ${e.message}`); }
+    return `gs://${BUCKET_NAME}/${destinationPath}`;
 }
 
 async function callBusinessService(url, payloadObj) {
-    // OBTENER TOKEN
     const tokenUrl = `${URLS.token}/?url=${encodeURIComponent(url)}`;
-    console.log(`[TOKEN] Solicitando para: ${url}`);
-
-    const tRes = await makeHttpRequest(tokenUrl, { method: 'GET' });
-
-    if (tRes.statusCode !== 200) {
-        throw new Error(`Error obteniendo token (${tRes.statusCode}): ${tRes.body}`);
+    const tokenResponse = await fetch(tokenUrl);
+    if (!tokenResponse.ok) {
+        const errorBody = await tokenResponse.text();
+        throw new Error(`Error obteniendo token (${tokenResponse.status}): ${errorBody}`);
     }
-
-    let tokenData;
-    try {
-        tokenData = JSON.parse(tRes.body);
-    } catch (e) {
-        throw new Error(`Respuesta de token inválida (No JSON): ${tRes.body}`);
-    }
-
-    if (!tokenData.token) {
-        throw new Error(`Respuesta de token sin campo 'token': ${JSON.stringify(tokenData)}`);
-    }
-
+    const tokenData = await tokenResponse.json();
+    if (!tokenData.token) throw new Error(`Respuesta de token inválida`);
     const token = tokenData.token;
-
-    // LLAMAR AL SERVICIO DE NEGOCIO
-    const jsonString = JSON.stringify(payloadObj);
-    const payloadBuffer = Buffer.from(jsonString, 'utf8');
-
-    return makeHttpRequest(url, {
+    const serviceResponse = await fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
-            'Content-Length': payloadBuffer.length
-        }
-    }, payloadBuffer);
+        },
+        body: JSON.stringify(payloadObj)
+    });
+    if (!serviceResponse.ok) {
+        const errorBody = await serviceResponse.text();
+        throw new Error(`IA Service Error (${serviceResponse.status}): ${errorBody}`);
+    }
+    return serviceResponse.json();
 }
 
-// SERVIDOR PRINCIPAL
+// --- LÓGICA PRINCIPAL DE PROCESAMIENTO ---
+function updateJobProgress(jobId, progress) {
+    if (jobs[jobId]) {
+        jobs[jobId].progress = { ...jobs[jobId].progress, ...progress };
+    }
+}
 
-http.createServer(async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-
-    // HELPER PARA MANEJAR RUTAS DE NEGOCIO
-    const handleBusinessRoute = async (serviceUrl, processPayloadFunc, responseType = 'text/csv', requiredFields = []) => {
-        let uploadedPaths = [];
-        try {
-            const { fields, files } = await parseMultipartIncoming(req);
-
-            // Validar campos requeridos
-            for (const field of requiredFields) {
-                if (!fields[field]) throw new Error(`Falta campo requerido: ${field}`);
-            }
-
-            // Validaciones específicas
-            if (serviceUrl === URLS.evaluacion && files.length === 0) throw new Error("Faltan archivos para evaluación");
-            if (serviceUrl === URLS.epicas && files.length === 0 && (!fields.indicaciones || fields.indicaciones.trim() === '')) throw new Error("Se requiere archivo o indicaciones");
-
-            // Subir archivos
-            if (files.length > 0) {
-                console.log(`Subiendo ${files.length} archivos...`);
-                uploadedPaths = await Promise.all(files.map(uploadToDocs));
-            }
-
-            // Construir Payload específico
-            const payload = processPayloadFunc(fields, uploadedPaths);
-
-            console.log(`Llamando servicio... Payload keys: ${Object.keys(payload)}`);
-            const apiRes = await callBusinessService(serviceUrl, payload);
-
-            res.writeHead(apiRes.statusCode, { 'Content-Type': responseType });
-            res.end(apiRes.body);
-
-        } catch (e) {
-            console.error("Error en ruta:", e.message);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: e.message }));
-        } finally {
-            if (uploadedPaths.length > 0) {
-                uploadedPaths.forEach(deleteFromDocs);
+async function processUpscale(jobId, file) {
+    try {
+        const bounds = [
+            [-74.20, 4.60], // Suroeste (min Longitude, min Latitude)
+            [-74.00, 4.80]  // Noreste (max Longitude, max Latitude)
+        ];
+        console.log(`[DEBUG] Coordenadas (simuladas):`, bounds);
+        const TILE_SIZE = 1024;
+        const image = sharp(file.buffer);
+        updateJobProgress(jobId, { message: "Convirtiendo TIF a JPEG..." });
+        const jpegBuffer = await image.jpeg({ quality: 90 }).toBuffer();
+        const originalJpegPath = `${BUCKET_BASE_PATH}/original_jpeg/${jobId}.jpeg`;
+        await uploadToDocs(jpegBuffer, originalJpegPath);
+        const originalPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${originalJpegPath}`;
+        const jpegImage = sharp(jpegBuffer);
+        const { width, height } = await jpegImage.metadata();
+        const tiles = [];
+        for (let y = 0; y < height; y += TILE_SIZE) {
+            for (let x = 0; x < width; x += TILE_SIZE) {
+                tiles.push({ x, y, width: Math.min(TILE_SIZE, width - x), height: Math.min(TILE_SIZE, height - y) });
             }
         }
-    };
+        updateJobProgress(jobId, { total: tiles.length, processed: 0 });
 
-    // EVALUACIÓN
-    if (req.method === 'POST' && req.url === '/api/evaluar') {
-        await handleBusinessRoute(URLS.evaluacion, (fields, paths) => ({
-            urls: paths,
-            riesgo: parseInt(fields.riesgo)
-        }), 'application/json', ['riesgo']);
-    }
-
-    // VISTAS ESTÁTICOS
-    else if (req.method === 'GET') {
-        const filePath = path.join('./src', req.url === '/' ? '/views/index.html' : req.url);
-
-        fs.readFile(filePath, (err, content) => {
-            if (err) {
-                console.log('No encontrado:', filePath);
-                res.writeHead(404);
-                res.end('404 Not Found');
-                return;
-            }
-
-            const ext = path.extname(filePath).toLowerCase();
-
-            const mime = {
-                '.html': 'text/html',
-                '.css': 'text/css',
-                '.js': 'application/javascript',
-                '.json': 'application/json',
-                '.png': 'image/png',
-                '.jpg': 'image/jpeg',
-                '.svg': 'image/svg+xml'
-            };
-
-            res.writeHead(200, {
-                'Content-Type': mime[ext] || 'application/octet-stream'
-            });
-
-            res.end(content);
+        // --- CAMBIO 1: Bucle de subida de originales con progreso incremental ---
+        let originalsUploaded = 0;
+        const originalUploadPromises = tiles.map(async (tile, i) => {
+            const tileBuffer = await jpegImage.extract({ left: tile.x, top: tile.y, width: tile.width, height: tile.height }).toBuffer();
+            const destPath = `${BUCKET_BASE_PATH}/grillas_originales/${jobId}/tile_${tile.x}_${tile.y}.jpeg`;
+            const gsPath = await uploadToDocs(tileBuffer, destPath);
+            originalsUploaded++;
+            updateJobProgress(jobId, { message: `Subiendo grilla original ${originalsUploaded}/${tiles.length}`, processed: originalsUploaded });
+            return gsPath;
         });
-    } else { res.writeHead(404); res.end(); }
+        const originalGsPaths = await Promise.all(originalUploadPromises);
 
-}).listen(PORT, () => console.log(`Server en http://localhost:${PORT}`));
+
+        // --- CAMBIO 2: Bucle de mejora con IA con progreso incremental ---
+        let tilesImproved = 0;
+        updateJobProgress(jobId, { message: `Mejorando grillas con IA...`, processed: 0 });
+        const upgradePromises = originalGsPaths.map(gsPath =>
+            callBusinessService(URLS.upscale, { imagen_gs: gsPath }).then(result => {
+                tilesImproved++;
+                updateJobProgress(jobId, { message: `Mejorando grilla ${tilesImproved}/${tiles.length}`, processed: tilesImproved });
+                return result;
+            })
+        );
+        const upgradedResults = await Promise.all(upgradePromises);
+
+
+        // --- CAMBIO 3: Bucle de ensamblaje con progreso incremental ---
+        let tilesAssembled = 0;
+        updateJobProgress(jobId, { message: `Analizando y ensamblando imagen final...`, processed: 0 });
+        const inspectionPromises = upgradedResults.map(async (tileInfo, i) => {
+            const response = await fetch(tileInfo.public_url);
+            const buffer = await response.buffer();
+            const improvedTileDestPath = `${BUCKET_BASE_PATH}/grillas_mejoradas/${jobId}/tile_${tiles[i].x}_${tiles[i].y}.png`;
+            // Ejecutamos la subida en segundo plano, no necesitamos esperarla para continuar
+            uploadToDocs(buffer, improvedTileDestPath).catch(err => console.error(`Failed to upload improved tile: ${err.message}`));
+            const metadata = await sharp(buffer).metadata();
+            tilesAssembled++;
+            updateJobProgress(jobId, { message: `Analizando grilla ${tilesAssembled}/${tiles.length}`, processed: tilesAssembled });
+            return { buffer, originalX: tiles[i].x, originalY: tiles[i].y, width: metadata.width, height: metadata.height };
+        });
+        const inspectedTiles = await Promise.all(inspectionPromises);
+
+
+        // --- Lógica de cálculo de dimensiones y ensamblaje final (SIN CAMBIOS) ---
+        const columnWidths = {}; const rowHeights = {};
+        inspectedTiles.forEach(tile => { columnWidths[tile.originalX] = Math.max(columnWidths[tile.originalX] || 0, tile.width); rowHeights[tile.originalY] = Math.max(rowHeights[tile.originalY] || 0, tile.height); });
+        const finalWidth = Object.values(columnWidths).reduce((sum, w) => sum + w, 0); const finalHeight = Object.values(rowHeights).reduce((sum, h) => sum + h, 0);
+        const xCoords = Object.keys(columnWidths).map(Number).sort((a, b) => a - b); const yCoords = Object.keys(rowHeights).map(Number).sort((a, b) => a - b);
+        const positionMap = { x: {}, y: {} }; let currentLeft = 0; xCoords.forEach(x => { positionMap.x[x] = currentLeft; currentLeft += columnWidths[x]; }); let currentTop = 0; yCoords.forEach(y => { positionMap.y[y] = currentTop; currentTop += rowHeights[y]; });
+        const compositeArray = inspectedTiles.map(tile => ({ input: tile.buffer, left: positionMap.x[tile.originalX], top: positionMap.y[tile.originalY] }));
+
+        updateJobProgress(jobId, { message: 'Creando archivo TIF final...' });
+        const finalImageBuffer = await sharp({ create: { width: finalWidth, height: finalHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite(compositeArray).tiff({ quality: 100, compression: 'lzw' }).toBuffer();
+
+        updateJobProgress(jobId, { message: 'Subiendo resultado final...' });
+        const finalDestPath = `${BUCKET_BASE_PATH}/resultados_finales/${jobId}.tif`;
+        const finalGsPath = await uploadToDocs(finalImageBuffer, finalDestPath);
+        const improvedPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${finalDestPath}`;
+
+        console.log(`Proceso completado para ${jobId}. Resultado: ${finalGsPath}`);
+        jobs[jobId].result = {
+            improvedUrl: improvedPublicUrl,
+            originalUrl: originalPublicUrl,
+            bounds: bounds
+        };
+        updateJobProgress(jobId, {
+            status: 'complete',
+            message: '¡Proceso completado!',
+            processed: tiles.length, // Aseguramos que el contador esté al máximo
+            total: tiles.length
+        });
+    } catch (error) {
+        console.error(`Error en el trabajo ${jobId}:`, error);
+        updateJobProgress(jobId, { status: 'error', error: error.message });
+    }
+}
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'src', 'views', 'index.html'));
+});
+
+app.use('/map', mapRoutes);
+
+// Ruta para el visor del mapa
+app.get('/api/progress/:jobId', (req, res) => {
+    const { jobId } = req.params;
+    if (!jobs[jobId]) return res.status(404).send('Job not found');
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+
+    const intervalId = setInterval(() => {
+        const job = jobs[jobId];
+        if (!job) { clearInterval(intervalId); return res.end(); }
+        // Enviamos el objeto de progreso completo, incluyendo el resultado si existe
+        res.write(`data: ${JSON.stringify({ status: job.status, ...job.progress, result: job.result })}\n\n`);
+        if (job.status === 'complete' || job.status === 'error') {
+            clearInterval(intervalId);
+            res.end();
+            // Opcional: limpiar el trabajo de la memoria después de un tiempo
+            setTimeout(() => delete jobs[jobId], 60000);
+        }
+    }, 1000);
+    req.on('close', () => clearInterval(intervalId));
+});
+
+
+app.post('/api/upscale', async (req, res, next) => {
+    try {
+        const { files } = await parseMultipartIncoming(req);
+        if (!files || files.length === 0) throw new Error('No se ha subido ningún archivo.');
+        const jobId = randomUUID();
+        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jobId }));
+        processUpscale(jobId, files[0]);
+    } catch (e) {
+        console.error("Error en /api/upscale:", e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+    }
+})
+
+app.post('/api/upscale-from-gs', async (req, res, next) => {
+    const { gsPath } = await parseJsonBody(req);
+    if (!gsPath) throw new Error('Falta el campo "gsPath" en el cuerpo de la petición.');
+    const fileBuffer = await downloadFromGCS(gsPath);
+    const file = { buffer: fileBuffer, filename: path.basename(gsPath) };
+    const jobId = randomUUID();
+    jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ jobId }));
+    processUpscale(jobId, file);
+})
+
+app.get('/api/progress/:jobId', (req, res) => {
+    const jobId = req.url.split('/')[3];
+    if (!jobs[jobId]) { res.writeHead(404); res.end('Job not found'); return; }
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+    const intervalId = setInterval(() => {
+        const job = jobs[jobId];
+        if (!job) { clearInterval(intervalId); res.end(); return; }
+        res.write(`data: ${JSON.stringify({ status: job.status, ...job.progress })}\n\n`);
+        if (job.status === 'complete' || job.status === 'error') {
+            clearInterval(intervalId);
+            delete jobs[jobId];
+            res.end();
+        }
+    }, 1000);
+    req.on('close', () => clearInterval(intervalId));
+})
+
+app.listen(PORT, () => console.log(`Servidor Express iniciado en http://localhost:${PORT}`));
+// --- SERVIDOR PRINCIPAL Y RUTAS ---
+// http.createServer(async (req, res) => {
+//     res.setHeader('Access-Control-Allow-Origin', '*');
+//     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+//     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+//     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+//     // RUTA: Cargar desde archivo local
+//     if (req.method === 'POST' && req.url === '/api/upscale') {
+//         try {
+//             const { files } = await parseMultipartIncoming(req);
+//             if (!files || files.length === 0) throw new Error('No se ha subido ningún archivo.');
+//             const jobId = randomUUID();
+//             jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
+//             res.writeHead(200, { 'Content-Type': 'application/json' });
+//             res.end(JSON.stringify({ jobId }));
+//             processUpscale(jobId, files[0]);
+//         } catch (e) {
+//             console.error("Error en /api/upscale:", e.message);
+//             res.writeHead(500, { 'Content-Type': 'application/json' });
+//             res.end(JSON.stringify({ error: e.message }));
+//         }
+//     }
+//     // RUTA: Cargar desde GSUtil
+//     else if (req.method === 'POST' && req.url === '/api/upscale-from-gs') {
+//         const { gsPath } = await parseJsonBody(req);
+//         if (!gsPath) throw new Error('Falta el campo "gsPath" en el cuerpo de la petición.');
+//         const fileBuffer = await downloadFromGCS(gsPath);
+//         const file = { buffer: fileBuffer, filename: path.basename(gsPath) };
+//         const jobId = randomUUID();
+//         jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
+//         res.writeHead(200, { 'Content-Type': 'application/json' });
+//         res.end(JSON.stringify({ jobId }));
+//         processUpscale(jobId, file);
+//     }
+//     else if (req.method === 'GET' && req.url.startsWith('/api/progress/')) {
+//         const jobId = req.url.split('/')[3];
+//         if (!jobs[jobId]) { res.writeHead(404); res.end('Job not found'); return; }
+//         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+//         const intervalId = setInterval(() => {
+//             const job = jobs[jobId];
+//             if (!job) { clearInterval(intervalId); res.end(); return; }
+//             res.write(`data: ${JSON.stringify({ status: job.status, ...job.progress })}\n\n`);
+//             if (job.status === 'complete' || job.status === 'error') {
+//                 clearInterval(intervalId);
+//                 delete jobs[jobId];
+//                 res.end();
+//             }
+//         }, 1000);
+//         req.on('close', () => clearInterval(intervalId));
+//     }
+//     else if (req.method === 'GET') {
+//         const requestedPath = (req.url === '/') ? path.join('src', 'views', 'index.html') : path.join('src', decodeURIComponent(req.url));
+//         const filePath = path.join(__dirname, requestedPath);
+//         fs.readFile(filePath, (err, content) => {
+//             if (err) { res.writeHead(404); res.end('404 Not Found'); return; }
+//             const mime = {
+//                 '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json',
+//                 '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml'
+//             };
+//             const ext = path.extname(filePath);
+//             res.writeHead(200, { 'Content-Type': mime[ext] || 'application/octet-stream' });
+//             res.end(content);
+//         });
+//     } else {
+//         res.writeHead(404);
+//         res.end();
+//     }
+// }).listen(PORT, () => console.log(`Servidor iniciado en http://localhost:${PORT}`));
