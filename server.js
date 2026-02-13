@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -6,7 +7,7 @@ const { randomUUID } = require('crypto');
 const FormData = require('form-data');
 const fetch = require('node-fetch');
 const { Storage } = require('@google-cloud/storage');
-const mapRoutes = require('./modules/map/map.routes.js');
+const mapRoutes = require('./src/modules/map/map.routes.js');
 const { fromArrayBuffer } = require('geotiff');
 
 
@@ -32,11 +33,12 @@ app.use((req, res, next) => {
 
 // --- MIDDLEWARE DE EXPRESS ---
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'src'));
+app.set('views', path.join(__dirname, 'src', 'modules'));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'src')));
-app.set('views', path.join(__dirname, 'modules'));
-app.use('/modules', express.static(path.join(__dirname, 'modules')));
+app.use('/modules', express.static(path.join(__dirname, 'src', 'modules')));
+app.use('/assets/modules', express.static(path.join(__dirname, 'src', 'modules')));
 
 app.use((req, res, next) => {
     res.setHeader(
@@ -54,6 +56,9 @@ app.use((req, res, next) => {
 });
 // --- HELPERS (Solo parseo de la petición entrante) ---
 async function parseJsonBody(req) {
+    if (req.body && Object.keys(req.body).length > 0) {
+        return req.body;
+    }
     return new Promise((resolve, reject) => {
         let body = '';
         req.on('data', chunk => body += chunk.toString());
@@ -77,6 +82,15 @@ async function downloadFromGCS(gsPath) {
     console.log(`Descargando de gs://${bucketName}/${filePath}`);
     const [fileBuffer] = await storage.bucket(bucketName).file(filePath).download();
     return fileBuffer;
+}
+
+async function downloadFromUrl(imageUrl) {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Error descargando imagen (${response.status}): ${errorBody}`);
+    }
+    return response.buffer();
 }
 
 function bufferSplit(buffer, separator) {
@@ -337,6 +351,40 @@ app.post('/api/upscale-from-gs', async (req, res, next) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ jobId }));
     processUpscale(jobId, file);
+})
+
+app.post('/api/upscale-from-url', async (req, res) => {
+    try {
+        const { imageUrl } = await parseJsonBody(req);
+        if (!imageUrl) throw new Error('Falta el campo "imageUrl" en el cuerpo de la petición.');
+
+        let fileBuffer;
+        let filename = 'image.tif';
+
+        if (imageUrl.startsWith('gs://')) {
+            fileBuffer = await downloadFromGCS(imageUrl);
+            filename = path.basename(imageUrl);
+        } else {
+            fileBuffer = await downloadFromUrl(imageUrl);
+            try {
+                const parsedUrl = new URL(imageUrl);
+                filename = path.basename(parsedUrl.pathname) || filename;
+            } catch (err) {
+                console.warn('No se pudo determinar el nombre del archivo desde la URL.');
+            }
+        }
+
+        const file = { buffer: fileBuffer, filename };
+        const jobId = randomUUID();
+        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jobId }));
+        processUpscale(jobId, file);
+    } catch (e) {
+        console.error('Error en /api/upscale-from-url:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+    }
 })
 
 app.get('/api/progress/:jobId', (req, res) => {

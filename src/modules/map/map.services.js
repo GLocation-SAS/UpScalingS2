@@ -7,7 +7,7 @@ const mapConfig = {
 };
 
 // URL de tu Cloud Function de GEE (actualiza con tu URL real)
-const GEE_FUNCTION_URL = process.env.GEE_FUNCTION_URL || 'https://get-gee-image-960956212831.us-east1.run.app';
+const GEE_FUNCTION_URL = process.env.GEE_FUNCTION_URL || 'https://get-gee-image-209592542335.us-east1.run.app';
 
 const fetchGeeImage = async (date, geometry) => {
   console.log('\n🔷 [SERVICE] Iniciando fetchGeeImage');

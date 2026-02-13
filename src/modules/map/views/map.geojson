@@ -1,0 +1,48 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zona de ejemplo"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-74.25, 4.86],
+            [-74.25, 4.62],
+            [-73.95, 4.62],
+            [-73.95, 4.86],
+            [-74.25, 4.86]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ruta principal"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-74.22, 4.7],
+          [-74.12, 4.74],
+          [-74.02, 4.7],
+          [-73.98, 4.66]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Punto central"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-74.0721, 4.711]
+      }
+    }
+  ]
+}
