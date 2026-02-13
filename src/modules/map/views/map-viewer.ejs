@@ -2,7 +2,7 @@
 <html lang="es">
 
 <head>
-  <title>Resultado | UpScalingS2</title>
+  <title>Resultado del Procesamiento - UpScalingS2</title>
   <meta charset="utf-8" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="/modules/map/views/map-viewer.css" />
@@ -34,13 +34,26 @@
         </div>
 
         <div class="sidebar-section">
+          <h4>Descargar</h4>
+          <div class="download-buttons">
+            <a href="<%= resultData.originalJpegUrl %>" class="download-btn"
+              download="original_<%= jobId.substring(0,8) %>.jpeg">Original (JPEG)</a>
+            <a href="<%= resultData.improvedPngUrl %>" class="download-btn"
+              download="mejorado_<%= jobId.substring(0,8) %>.png">Mejorado (PNG)</a>
+            <a href="<%= resultData.improvedTifUrl %>" class="download-btn primary"
+              download="mejorado_<%= jobId.substring(0,8) %>.tif">Mejorado (GeoTIFF)</a>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
           <a href="/" class="back-btn">Procesar otra imagen</a>
         </div>
       </aside>
 
       <div id="<%= mapConfig.containerId %>" class="map" data-tile-url="<%= mapConfig.tileUrl %>"
         data-logo="<%= mapConfig.maplibreLogo %>" data-bounds='<%- JSON.stringify(resultData.bounds) %>'
-        data-original-url="<%= resultData.originalUrl %>" data-improved-url="<%= resultData.improvedUrl %>"></div>
+        data-original-url="<%= resultData.originalJpegUrl %>" data-improved-url="<%= resultData.improvedPngUrl %>">
+      </div>
     </section>
   </main>
 
