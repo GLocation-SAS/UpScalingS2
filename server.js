@@ -175,6 +175,23 @@ async function callBusinessService(url, payloadObj) {
 }
 
 // --- LÓGICA PRINCIPAL DE PROCESAMIENTO ---
+function getBoundsFromGeometry(geometry) {
+    if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) {
+        return [[-74.20, 4.60], [-74.00, 4.80]];
+    }
+
+    const coords = geometry.coordinates[0];
+    const lngs = coords.map(c => c[0]);
+    const lats = coords.map(c => c[1]);
+    
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+
+    return [[minLng, minLat], [maxLng, maxLat]];
+}
+
 function updateJobProgress(jobId, progress) {
     if (jobs[jobId]) {
         jobs[jobId].progress = { ...jobs[jobId].progress, ...progress };
@@ -183,20 +200,31 @@ function updateJobProgress(jobId, progress) {
 
 async function processUpscale(jobId, file) {
     try {
-        updateJobProgress(jobId, { message: "Leyendo metadatos GeoTIFF..." });
+        let realBounds;
 
-        // --- CORRECCIÓN DEFINITIVA: Convertir Buffer a ArrayBuffer y usar fromArrayBuffer ---
-        const arrayBuffer = file.buffer.buffer.slice(
-            file.buffer.byteOffset,
-            file.buffer.byteOffset + file.buffer.byteLength
-        );
-        const tiff = await fromArrayBuffer(arrayBuffer);
-
-        const image = await tiff.getImage();
-        const bbox = image.getBoundingBox();
-        const realBounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
-
-        console.log(`[GeoTIFF] Coordenadas reales extraídas:`, realBounds);
+        if (file.geotiffBuffer) {
+            updateJobProgress(jobId, { message: "Leyendo metadatos GeoTIFF..." });
+            try {
+                const arrayBuffer = file.geotiffBuffer.buffer.slice(
+                    file.geotiffBuffer.byteOffset,
+                    file.geotiffBuffer.byteOffset + file.geotiffBuffer.byteLength
+                );
+                const tiff = await fromArrayBuffer(arrayBuffer);
+                const image = await tiff.getImage();
+                const bbox = image.getBoundingBox();
+                realBounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
+                console.log(`[GeoTIFF] Coordenadas reales extraídas:`, realBounds);
+            } catch (err) {
+                console.warn('Error al leer GeoTIFF, usando geometría del rectángulo:', err.message);
+                realBounds = file.geometry ? getBoundsFromGeometry(file.geometry) : [[-74.20, 4.60], [-74.00, 4.80]];
+            }
+        } else if (file.geometry) {
+            realBounds = getBoundsFromGeometry(file.geometry);
+            console.log(`[Geometría] Coordenadas del rectángulo:`, realBounds);
+        } else {
+            realBounds = [[-74.20, 4.60], [-74.00, 4.80]];
+            console.log(`[Default] Coordenadas predeterminadas:`, realBounds);
+        }
 
         const TILE_SIZE = 1024;
         const sharpImage = sharp(file.buffer);
@@ -352,7 +380,7 @@ app.post('/api/upscale-from-gs', async (req, res, next) => {
 
 app.post('/api/upscale-from-url', async (req, res) => {
     try {
-        const { imageUrl } = await parseJsonBody(req);
+        const { imageUrl, geotiffUrl, geometry } = await parseJsonBody(req);
         if (!imageUrl) throw new Error('Falta el campo "imageUrl" en el cuerpo de la petición.');
 
         let fileBuffer;
@@ -371,7 +399,18 @@ app.post('/api/upscale-from-url', async (req, res) => {
             }
         }
 
-        const file = { buffer: fileBuffer, filename };
+        let geotiffBuffer = null;
+        if (geotiffUrl) {
+            try {
+                geotiffBuffer = geotiffUrl.startsWith('gs://')
+                    ? await downloadFromGCS(geotiffUrl)
+                    : await downloadFromUrl(geotiffUrl);
+            } catch (err) {
+                console.warn('No se pudo descargar el GeoTIFF:', err.message);
+            }
+        }
+
+        const file = { buffer: fileBuffer, filename, geotiffBuffer, geometry };
         const jobId = randomUUID();
         jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
         res.writeHead(200, { 'Content-Type': 'application/json' });
