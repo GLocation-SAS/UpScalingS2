@@ -1232,6 +1232,11 @@ button:focus, button:focus-visible {
   background-size: 40px 40px;
 }
 
+.text-results {
+  --tw-text-opacity: 1;
+  color: #E98324;
+}
+
 .hover\:border-secondary\/100:hover {
   border-color: rgb(101 167 219 / 1);
 }

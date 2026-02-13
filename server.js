@@ -192,9 +192,14 @@ function getBoundsFromGeometry(geometry) {
     return [[minLng, minLat], [maxLng, maxLat]];
 }
 
-function updateJobProgress(jobId, progress) {
+function updateJobProgress(jobId, progressUpdate) {
     if (jobs[jobId]) {
-        jobs[jobId].progress = { ...jobs[jobId].progress, ...progress };
+        // Si el objeto de actualización tiene un 'status', actualiza el status principal del job.
+        if (progressUpdate.status) {
+            jobs[jobId].status = progressUpdate.status;
+        }
+        // Siempre actualiza el sub-objeto de progreso.
+        jobs[jobId].progress = { ...jobs[jobId].progress, ...progressUpdate };
     }
 }
 
