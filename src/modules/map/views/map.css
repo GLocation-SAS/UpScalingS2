@@ -41,6 +41,7 @@ body {
   padding: 18px;
   display: flex;
   gap: 18px;
+  height: 100%;
 }
 
 .sidebar {

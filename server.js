@@ -183,7 +183,7 @@ function getBoundsFromGeometry(geometry) {
     const coords = geometry.coordinates[0];
     const lngs = coords.map(c => c[0]);
     const lats = coords.map(c => c[1]);
-    
+
     const minLng = Math.min(...lngs);
     const maxLng = Math.max(...lngs);
     const minLat = Math.min(...lats);
@@ -200,30 +200,18 @@ function updateJobProgress(jobId, progress) {
 
 async function processUpscale(jobId, file) {
     try {
-        let realBounds;
+        updateJobProgress(jobId, { message: "Leyendo metadatos GeoTIFF..." });
 
-        if (file.geotiffBuffer) {
-            updateJobProgress(jobId, { message: "Leyendo metadatos GeoTIFF..." });
-            try {
-                const arrayBuffer = file.geotiffBuffer.buffer.slice(
-                    file.geotiffBuffer.byteOffset,
-                    file.geotiffBuffer.byteOffset + file.geotiffBuffer.byteLength
-                );
-                const tiff = await fromArrayBuffer(arrayBuffer);
-                const image = await tiff.getImage();
-                const bbox = image.getBoundingBox();
-                realBounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
-                console.log(`[GeoTIFF] Coordenadas reales extraídas:`, realBounds);
-            } catch (err) {
-                console.warn('Error al leer GeoTIFF, usando geometría del rectángulo:', err.message);
-                realBounds = file.geometry ? getBoundsFromGeometry(file.geometry) : [[-74.20, 4.60], [-74.00, 4.80]];
-            }
-        } else if (file.geometry) {
-            realBounds = getBoundsFromGeometry(file.geometry);
-            console.log(`[Geometría] Coordenadas del rectángulo:`, realBounds);
-        } else {
-            realBounds = [[-74.20, 4.60], [-74.00, 4.80]];
-            console.log(`[Default] Coordenadas predeterminadas:`, realBounds);
+        try {
+            const arrayBuffer = file.buffer.buffer.slice(file.buffer.byteOffset, file.buffer.byteOffset + file.buffer.byteLength);
+            const tiff = await fromArrayBuffer(arrayBuffer);
+            const image = await tiff.getImage();
+            const bbox = image.getBoundingBox();
+            realBounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
+            console.log(`[PROCESS] Coordenadas GeoTIFF extraídas:`, realBounds);
+        } catch (geotiffError) {
+            console.error("[PROCESS] Error Crítico: El archivo proporcionado no es un GeoTIFF válido.", geotiffError);
+            throw new Error("El archivo de entrada debe ser un GeoTIFF válido para extraer las coordenadas.");
         }
 
         const TILE_SIZE = 1024;
@@ -383,48 +371,33 @@ app.post('/api/upscale-from-gs', async (req, res, next) => {
 
 app.post('/api/upscale-from-url', async (req, res) => {
     try {
-        const { imageUrl, geotiffUrl, geometry } = await parseJsonBody(req);
-        if (!imageUrl) throw new Error('Falta el campo "imageUrl" en el cuerpo de la petición.');
+        const { geotiffUrl, geometry } = req.body;
 
-        let fileBuffer;
-        let filename = 'image.tif';
-
-        if (imageUrl.startsWith('gs://')) {
-            fileBuffer = await downloadFromGCS(imageUrl);
-            filename = path.basename(imageUrl);
-        } else {
-            fileBuffer = await downloadFromUrl(imageUrl);
-            try {
-                const parsedUrl = new URL(imageUrl);
-                filename = path.basename(parsedUrl.pathname) || filename;
-            } catch (err) {
-                console.warn('No se pudo determinar el nombre del archivo desde la URL.');
-            }
+        if (!geotiffUrl) {
+            throw new Error('La respuesta de GEE no incluyó la URL del archivo GeoTIFF (geotiffUrl). No se puede procesar.');
         }
 
-        let geotiffBuffer = null;
-        if (geotiffUrl) {
-            try {
-                geotiffBuffer = geotiffUrl.startsWith('gs://')
-                    ? await downloadFromGCS(geotiffUrl)
-                    : await downloadFromUrl(geotiffUrl);
-            } catch (err) {
-                console.warn('No se pudo descargar el GeoTIFF:', err.message);
-            }
+        console.log(`[API] Descargando GeoTIFF desde URL de GEE: ${geotiffUrl}`);
+        const imageResponse = await fetch(geotiffUrl);
+        if (!imageResponse.ok) {
+            throw new Error(`No se pudo descargar el GeoTIFF desde ${geotiffUrl}`);
         }
+        const imageBuffer = await imageResponse.buffer();
 
-        const file = { buffer: fileBuffer, filename, geotiffBuffer, geometry };
+        // El archivo que pasamos a processUpscale es ahora el GeoTIFF real
+        const file = { buffer: imageBuffer, filename: `gee_image_${Date.now()}.tif` };
         const jobId = randomUUID();
-        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ jobId }));
+        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando desde GEE...', processed: 0, total: 0 } };
+
+        res.json({ jobId }); // Devolver el jobId inmediatamente
+
         processUpscale(jobId, file);
+
     } catch (e) {
-        console.error('Error en /api/upscale-from-url:', e.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: e.message }));
+        console.error("[API] Error en /api/upscale-from-url:", e);
+        res.status(500).json({ error: e.message });
     }
-})
+});
 
 app.get('/api/progress/:jobId', (req, res) => {
     const jobId = req.url.split('/')[3];
