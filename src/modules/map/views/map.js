@@ -54,13 +54,13 @@ function handleJobProgress(jobId) {
   };
 }
 
-async function startUpscaleProcessFromUrl(imageUrl) {
-  if (!imageUrl) return null;
+async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry) {
+  if (!jpegUrl) return null;
   showProgress("Iniciando mejora con IA...");
   const response = await fetch("/api/upscale-from-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl })
+    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry })
   });
 
   if (!response.ok) {
@@ -405,16 +405,18 @@ if (mapElement) {
 
         addGeeLayerToMap(data.url, selectedDate, geometry);
 
-        const imageUrl = data.jpegUrl || data.imageUrl || data.image_url || data.public_url;
-        if (!imageUrl) {
+        const jpegUrl = data.jpegUrl || data.imageUrl || data.image_url || data.public_url;
+        const geotiffUrl = data.geotiffUrl;
+        
+        if (!jpegUrl) {
           throw new Error("La respuesta no incluye la URL de la imagen JPEG.");
         }
-        if (imageUrl.includes("{x}") || imageUrl.includes("{y}") || imageUrl.includes("{z}")) {
+        if (jpegUrl.includes("{x}") || jpegUrl.includes("{y}") || jpegUrl.includes("{z}")) {
           throw new Error("La URL de imagen es una plantilla de tiles, no un archivo descargable.");
         }
 
         loadingOverlay.style.display = "none";
-        const { jobId } = await startUpscaleProcessFromUrl(imageUrl);
+        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry);
         handleJobProgress(jobId);
       } catch (error) {
         alert(`⚠️ Error: ${error.message}`);

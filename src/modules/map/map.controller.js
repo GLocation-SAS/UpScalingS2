@@ -52,6 +52,7 @@ const renderMapResult = (req, res) => {
   }
 
   res.render("map/views/map-viewer", {
+    jobId,
     mapConfig: {
       containerId: "map",
       tileUrl: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
