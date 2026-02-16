@@ -274,6 +274,12 @@ body {
   color: #ffffff;
 }
 
+.download-btn.secondary {
+  background: #E98324;
+  border-color: #E98324;
+  color: #ffffff;
+}
+
 .download-btn.primary:hover {
   background: #3d6fd9;
 }

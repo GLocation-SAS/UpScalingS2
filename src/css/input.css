@@ -49,3 +49,8 @@
     animation: drift 8s ease-in-out infinite;
   }
 }
+
+.text-results {
+  --tw-text-opacity: 1;
+  color: #E98324;
+}

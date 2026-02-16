@@ -4,12 +4,31 @@
 <head>
   <title>Resultado del Procesamiento - UpScalingS2</title>
   <meta charset="utf-8" />
+  <link rel="icon" type="image/svg+xml" href="/public/img/Favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
   <link rel="stylesheet" href="/modules/map/views/map-viewer.css" />
+  <link rel="stylesheet" href="/css/output.css">
 </head>
 
 <body>
   <main class="layout">
+    <header class="hero relative z-10 p-6 flex justify-between items-center w-full mx-auto">
+      <div class="flex items-center gap-2 group cursor-pointer relative">
+        <img src="/public/img/Logo_Horizontal.png" alt="UpScalingS2" class="w-36 h-12 dark:hidden" />
+        <img src="/public/img/Logo_Horizonal_Blanco.png" alt="UpScalingS2" class="w-36 h-12 hidden dark:block" />
+      </div>
+      <h1 class="text-5xl md:text-7xl font-extrabold tracking-tighter inline-block">
+        <span class="text-results dark:text-white">Resultado del Procesamiento</span><span class="text-primary dark:text-white"> | </span>
+        <span class="text-primary dark:text-white">UpScaling</span><span class="logo-s2-color">S2</span>
+      </h1>
+      <button class="p-2 flex rounded-full text-primary px-5  bg-secondary/30 dark:text-white transition-colors"
+        onclick="document.documentElement.classList.toggle('dark')">
+        <span class="material-icons-round">dark_mode</span>
+      </button>
+    </header>
+
     <section class="map-shell">
       <aside class="sidebar">
         <div class="sidebar-header">
@@ -40,7 +59,22 @@
         </div>
 
         <div class="sidebar-section">
-          <a href="/" class="back-btn">Procesar otra imagen</a>
+          <h4>Descargar</h4>
+          <div class="download-buttons">
+            <a href="<%= resultData.originalJpegUrl %>" class="download-btn"
+              download="original_<%= jobId.substring(0,8) %>.jpeg">Original (JPEG)</a>
+            <a href="<%= resultData.improvedPngUrl %>" class="download-btn"
+              download="mejorado_<%= jobId.substring(0,8) %>.png">Mejorado (PNG)</a>
+            <a href="<%= resultData.improvedTifUrl %>" class="download-btn primary"
+              download="mejorado_<%= jobId.substring(0,8) %>.tif">Mejorado (GeoTIFF)</a>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <a href="/map" class="download-btn primary">Seleccionar desde el mapa</a>
+        </div>
+        <div class="sidebar-section">
+          <a href="/" class="download-btn secondary">Procesar otra imagen</a>
         </div>
       </aside>
 
@@ -54,6 +88,7 @@
 
   <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
   <script src="/modules/map/views/map-viewer.js"></script>
+  <script type="module" src="../js/main.js"></script>
 </body>
 
 </html>
