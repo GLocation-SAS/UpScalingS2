@@ -44,10 +44,10 @@ app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',
         "default-src 'self'; " +
-        "script-src 'self' https://unpkg.com blob:; " +
+        "script-src 'self' https://unpkg.com https://maps.googleapis.com blob:; " +
         "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; " +
         "font-src 'self' https://fonts.gstatic.com; " +
-        "connect-src 'self' https://mt1.google.com https://storage.googleapis.com https://unpkg.com; " +
+        "connect-src 'self' https://mt1.google.com https://maps.googleapis.com https://storage.googleapis.com https://unpkg.com; " +
         "img-src 'self' data: https://storage.googleapis.com https://mt1.google.com; " +
         "frame-src 'self';" +
         "worker-src 'self' blob:;"
@@ -298,7 +298,9 @@ async function processUpscale(jobId, file) {
             improvedPngUrl: improvedPngPublicUrl,
             improvedTifUrl: finalTifPublicUrl,
             originalJpegUrl: originalPublicUrl,
-            bounds: realBounds
+            bounds: realBounds,
+            satellitePreviewUrl: jobs[jobId].satellitePreviewUrl || null,
+            satelliteTiffUrl: jobs[jobId].satelliteTiffUrl || null
         };
         updateJobProgress(jobId, {
             status: 'complete',
@@ -371,7 +373,7 @@ app.post('/api/upscale-from-gs', async (req, res, next) => {
 
 app.post('/api/upscale-from-url', async (req, res) => {
     try {
-        const { geotiffUrl, geometry } = req.body;
+        const { geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl } = req.body;
 
         if (!geotiffUrl) {
             throw new Error('La respuesta de GEE no incluyó la URL del archivo GeoTIFF (geotiffUrl). No se puede procesar.');
@@ -387,7 +389,7 @@ app.post('/api/upscale-from-url', async (req, res) => {
         // El archivo que pasamos a processUpscale es ahora el GeoTIFF real
         const file = { buffer: imageBuffer, filename: `gee_image_${Date.now()}.tif` };
         const jobId = randomUUID();
-        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando desde GEE...', processed: 0, total: 0 } };
+        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando desde GEE...', processed: 0, total: 0 }, satellitePreviewUrl: satellitePreviewUrl || null, satelliteTiffUrl: satelliteTiffUrl || null };
 
         res.json({ jobId }); // Devolver el jobId inmediatamente
 

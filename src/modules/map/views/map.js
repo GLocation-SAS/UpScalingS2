@@ -54,13 +54,13 @@ function handleJobProgress(jobId) {
   };
 }
 
-async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry) {
+async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl) {
   if (!jpegUrl) return null;
   showProgress("Iniciando mejora con IA...");
   const response = await fetch("/api/upscale-from-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry })
+    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl })
   });
 
   if (!response.ok) {
@@ -106,6 +106,55 @@ if (mapElement) {
     maplibreLogo
   });
 
+  // --- Google Places Search ---
+  let googleSearchMarker = null;
+
+  function setupGooglePlacesSearch() {
+    const input = document.getElementById("google-places-search");
+    
+    if (!input) {
+      console.warn("Google Places search input not found");
+      return;
+    }
+
+    const options = {
+      fields: ["formatted_address", "geometry", "name"],
+      componentRestrictions: { country: "co" } // Colombia, cambia el código del país si es necesario
+    };
+
+    const autocomplete = new google.maps.places.Autocomplete(input, options);
+
+    autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace();
+
+      if (!place.geometry) {
+        alert("No se encontró la ubicación.");
+        return;
+      }
+
+      const location = place.geometry.location;
+      const lat = location.lat();
+      const lng = location.lng();
+
+      // Ajustar vista del mapa
+      if (place.geometry.viewport) {
+        const sw = place.geometry.viewport.getSouthWest();
+        const ne = place.geometry.viewport.getNorthEast();
+        map.fitBounds([[sw.lng(), sw.lat()], [ne.lng(), ne.lat()]]);
+      } else {
+        map.setCenter([lng, lat]);
+        map.setZoom(14);
+      }
+
+      // Agregar o actualizar marcador
+      if (googleSearchMarker) googleSearchMarker.remove();
+
+      googleSearchMarker = new maplibregl.Marker({ color: '#f40000ff' })
+        .setLngLat([lng, lat])
+        .addTo(map);
+    });
+  }
+
   // --- Estado del dibujo ---
   let drawingMode = false;
   let startLngLat = null;
@@ -122,17 +171,22 @@ if (mapElement) {
   loadingOverlay.id = "loading-overlay";
   loadingOverlay.style.cssText = `
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.7); display: none; justify-content: center;
-    align-items: center; z-index: 1000; flex-direction: column;
+    background: rgba(15, 23, 42, 0.5); display: none; justify-content: center;
+    align-items: center; z-index: 1000; backdrop-filter: blur(4px);
   `;
   loadingOverlay.innerHTML = `
-    <img src="https://i.gifer.com/ZKZg.gif" alt="Cargando..." style="width:100px;height:100px;">
-    <p style="color:white;margin-top:20px;font-size:18px;">Procesando con Google Earth Engine...</p>
+    <div class="loading-card">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Procesando con Google Earth Engine...</p>
+      </div>
   `;
   mapContainer.appendChild(loadingOverlay);
 
   // --- Inicializar capas de dibujo cuando el mapa cargue ---
   map.on("load", () => {
+
+    // Inicializar búsqueda de Google Places
+    setupGooglePlacesSearch();
 
     // Source para el rectangulo que se esta dibujando (preview)
     map.addSource("draw-rectangle-preview", {
@@ -289,8 +343,10 @@ if (mapElement) {
       geometryOutput.value = JSON.stringify(geoJSON, null, 2);
     }
 
+    const currentZoom = map.getZoom();
     window.currentRectangle = geoJSON;
-    console.log("✓ Rectangle captured:", geoJSON);
+    window.currentRectangleZoom = currentZoom;
+    console.log("✓ Rectangle captured:", geoJSON, "at zoom:", currentZoom);
 
     // Desactivar modo dibujo
     disableDrawing();
@@ -330,6 +386,7 @@ if (mapElement) {
       if (geometryOutput) geometryOutput.value = "";
 
       window.currentRectangle = null;
+      window.currentRectangleZoom = null;
       setInactiveAll();
 
       // Remover capas GEE
@@ -349,6 +406,31 @@ if (mapElement) {
   if (datePicker) {
     datePicker.valueAsDate = new Date();
   }
+
+  // --- Función de fetch con retry para cold starts ---
+  const fetchWithRetry = async (url, options, maxRetries = 2) => {
+    for (let i = 0; i <= maxRetries; i++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+        return response;
+      } catch (error) {
+        console.log(`Intento ${i + 1}/${maxRetries + 1} falló:`, error.message);
+
+        if (i === maxRetries) throw error;
+        if (error.name === 'AbortError') throw error;
+
+        await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1)));
+      }
+    }
+  };
 
   // --- Boton Capturar y procesar ---
   const captureBtn = document.getElementById("capture-btn");
@@ -387,26 +469,65 @@ if (mapElement) {
           Procesando...
         `;
 
-        console.log("Enviando petición a GEE:", { date: selectedDate, geometry });
+        console.log("Enviando peticiones en paralelo...", { date: selectedDate, zoom: Math.floor(map.getZoom()), layer: "satellite" });
 
-        const response = await fetch("/map/gee-image", {
+        const zoom = window.currentRectangleZoom 
+          ? Math.floor(window.currentRectangleZoom) 
+          : Math.floor(map.getZoom());
+        const layer = "satellite";
+
+        // Peticiones paralelas: GEE + TIFF compuesto satelital
+        const geePromise = fetchWithRetry("/map/gee-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ date: selectedDate, geometry })
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Error al obtener imagen");
+        const tiffPromise = fetchWithRetry("/map/tiff-compuesto", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ geometry: geoJSON, zoom, layer })
+        });
+
+        const [geeResult, tiffResult] = await Promise.allSettled([geePromise, tiffPromise]);
+
+        let geeData = null;
+        let tiffData = null;
+        let geeError = null;
+        let tiffError = null;
+
+        if (geeResult.status === "fulfilled") {
+          if (!geeResult.value.ok) {
+            const errorData = await geeResult.value.json();
+            geeError = errorData.message || errorData.error || "Error al obtener imagen Sentinel-2";
+          } else {
+            geeData = await geeResult.value.json();
+          }
+        } else {
+          geeError = geeResult.reason?.message || "Error al conectar con GEE";
         }
 
-        const data = await response.json();
-        console.log("✓ Respuesta recibida:", data);
+        if (tiffResult.status === "fulfilled") {
+          if (!tiffResult.value.ok) {
+            const errorData = await tiffResult.value.json();
+            tiffError = errorData.message || errorData.error || "Error al obtener mosaico satelital";
+          } else {
+            tiffData = await tiffResult.value.json();
+          }
+        } else {
+          tiffError = tiffResult.reason?.message || "Error al conectar con TIFF compuesto";
+        }
 
-        addGeeLayerToMap(data.url, selectedDate, geometry);
+        if (geeData?.url) {
+          addGeeLayerToMap(geeData.url, selectedDate, geometry);
+        }
 
-        const jpegUrl = data.jpegUrl || data.imageUrl || data.image_url || data.public_url;
-        const geotiffUrl = data.geotiffUrl;
+        if (geeError) {
+          throw new Error(`Sentinel-2: ${geeError}`);
+        }
+
+        const jpegUrl = geeData.jpegUrl || geeData.imageUrl || geeData.image_url || geeData.public_url;
+        const geotiffUrl = geeData.geotiffUrl;
         
         if (!jpegUrl) {
           throw new Error("La respuesta no incluye la URL de la imagen JPEG.");
@@ -415,8 +536,16 @@ if (mapElement) {
           throw new Error("La URL de imagen es una plantilla de tiles, no un archivo descargable.");
         }
 
+        // Datos del mapa satelital no híbrido
+        const satellitePreviewUrl = tiffData?.preview_url || null;
+        const satelliteTiffUrl = tiffData?.tiff_url || null;
+
+        if (tiffError) {
+          console.warn("Advertencia satelital:", tiffError);
+        }
+
         loadingOverlay.style.display = "none";
-        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry);
+        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl);
         handleJobProgress(jobId);
       } catch (error) {
         alert(`⚠️ Error: ${error.message}`);

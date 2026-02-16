@@ -187,6 +187,63 @@ body {
   box-shadow: 0 18px 40px rgba(18, 47, 88, 0.12);
 }
 
+/* ── Google Places Search Box ── */
+.google-search-box {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(18, 47, 88, 0.15);
+}
+
+.google-search-box input {
+  width: 300px;
+  padding: 10px 14px;
+  border: 1px solid #dbe6f5;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.google-search-box input:focus {
+  outline: none;
+  border-color: #4f83ff;
+  box-shadow: 0 0 0 3px rgba(79, 131, 255, 0.1);
+}
+
+.google-search-box input::placeholder {
+  color: #94a3b8;
+}
+
+/* Google Places Autocomplete Dropdown */
+.pac-container {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(18, 47, 88, 0.15);
+  border: 1px solid #dbe6f5;
+  margin-top: 4px;
+  font-family: "Karla", "Segoe UI", sans-serif;
+}
+
+.pac-item {
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  border-top: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+
+.pac-item:hover {
+  background: #f8fbff;
+}
+
+.pac-item-query {
+  font-size: 0.95rem;
+  color: #1a1b1f;
+}
+
 .progress-overlay {
   position: fixed;
   inset: 0;
@@ -245,6 +302,49 @@ body {
   font-family: "Consolas", "Monaco", monospace;
   font-size: 1rem;
   color: #1e293b;
+}
+
+/* ── Loading overlay (GEE processing) ── */
+.loading-card {
+  background: #ffffff;
+  padding: 32px 40px;
+  border-radius: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  max-width: 360px;
+  width: 90%;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #4f83ff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.loading-subtext {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
 }
 
 @media (max-width: 720px) {

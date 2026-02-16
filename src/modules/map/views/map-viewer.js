@@ -62,6 +62,23 @@ document.addEventListener('DOMContentLoaded', () => {
       layout: { 'visibility': 'visible' }
     });
 
+    // Añadir la imagen satelital no híbrida (si existe)
+    const satelliteUrl = mapElement.dataset.satelliteUrl;
+    if (satelliteUrl) {
+      map.addSource('satellite-image-source', {
+        type: 'image',
+        url: satelliteUrl,
+        coordinates: imageCoordinates
+      });
+      map.addLayer({
+        id: 'satellite-image-layer',
+        type: 'raster',
+        source: 'satellite-image-source',
+        paint: { 'raster-opacity': 1 },
+        layout: { 'visibility': 'none' }
+      });
+    }
+
     map.fitBounds(bounds, { padding: 40 });
   });
 
@@ -71,6 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const selectedValue = event.target.value;
       map.setLayoutProperty('original-image-layer', 'visibility', selectedValue === 'original' ? 'visible' : 'none');
       map.setLayoutProperty('improved-image-layer', 'visibility', selectedValue === 'improved' ? 'visible' : 'none');
+
+      // Controlar capa satelital no híbrida
+      const satelliteUrl = mapElement.dataset.satelliteUrl;
+      if (satelliteUrl && map.getLayer('satellite-image-layer')) {
+        map.setLayoutProperty('satellite-image-layer', 'visibility', selectedValue === 'satellite' ? 'visible' : 'none');
+      }
     });
   });
 
@@ -80,5 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const opacity = parseFloat(event.target.value);
     map.setPaintProperty('improved-image-layer', 'raster-opacity', opacity);
     map.setPaintProperty('original-image-layer', 'raster-opacity', opacity);
+
+    // Aplicar opacidad a la capa satelital no híbrida
+    const satelliteUrl = mapElement.dataset.satelliteUrl;
+    if (satelliteUrl && map.getLayer('satellite-image-layer')) {
+      map.setPaintProperty('satellite-image-layer', 'raster-opacity', opacity);
+    }
   });
 });

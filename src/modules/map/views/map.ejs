@@ -7,6 +7,7 @@
   <meta name="description" content="Visor de mapa con MapLibre GL JS" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="/assets/modules/map/views/map.css" />
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAItgLtvTSyFxwxeOu0EYGEwmAol4BmwL0&libraries=places"></script>
 </head>
 <body>
   <div id="progress-overlay" class="progress-overlay hidden">
@@ -69,13 +70,19 @@
         </div>
       </aside>
       
-      <div
-        id="<%= mapConfig.containerId %>"
-        class="map"
-        data-tile-url="<%= mapConfig.tileUrl %>"
-        data-center='<%- JSON.stringify(mapConfig.center) %>'
-        data-zoom="<%= mapConfig.zoom %>"
-        data-logo="<%= mapConfig.maplibreLogo %>">
+      <div style="position: relative; flex: 1;">
+        <div class="google-search-box">
+          <input id="google-places-search" type="search" placeholder="Busca dirección o lugar" />
+        </div>
+        
+        <div
+          id="<%= mapConfig.containerId %>"
+          class="map"
+          data-tile-url="<%= mapConfig.tileUrl %>"
+          data-center='<%- JSON.stringify(mapConfig.center) %>'
+          data-zoom="<%= mapConfig.zoom %>"
+          data-logo="<%= mapConfig.maplibreLogo %>">
+        </div>
       </div>
     </section>
   </main>
