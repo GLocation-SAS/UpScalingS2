@@ -54,13 +54,13 @@ function handleJobProgress(jobId) {
   };
 }
 
-async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl) {
+async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model) {
   if (!jpegUrl) return null;
   showProgress("Iniciando mejora con IA...");
   const response = await fetch("/api/upscale-from-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl })
+    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model })
   });
 
   if (!response.ok) {
@@ -440,6 +440,8 @@ if (mapElement) {
       const geometryOutput = document.getElementById("geometry-output");
       const selectedDate = datePicker?.value;
 
+      const selectedModel = document.getElementById("upscaling-model-select").value;
+
       if (!geometryOutput.value || geometryOutput.value.trim() === "") {
         alert("⚠️ No hay rectángulo dibujado. Por favor, dibuja un rectángulo en el mapa.");
         return;
@@ -545,7 +547,7 @@ if (mapElement) {
         }
 
         loadingOverlay.style.display = "none";
-        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl);
+        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, selectedModel);
         handleJobProgress(jobId);
       } catch (error) {
         alert(`⚠️ Error: ${error.message}`);

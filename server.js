@@ -203,7 +203,32 @@ function updateJobProgress(jobId, progressUpdate) {
     }
 }
 
-async function processUpscale(jobId, file) {
+async function processUpscale(jobId, file, model) {
+    let prompt = '';
+    switch (model) {
+        case 'upscaling':
+            prompt = 'a satellite image with 4x resolution, high quality, high detail, sharp focus, 8k, UHD, professional';
+            break;
+        case 'building_footprint':
+            prompt = 'a satellite image highlighting building footprints in bright red, high contrast, clearly defined edges';
+            break;
+        case 'ways':
+            prompt = 'a satellite image with all roads and paths highlighted in bright yellow, high contrast, clean lines';
+            break;
+        case 'forest':
+            prompt = 'a satellite image emphasizing forested areas in vibrant green, high contrast, distinguishing between different types of vegetation';
+            break;
+        case 'trees':
+            prompt = 'a satellite image where individual trees or small clusters of trees are clearly visible and distinct';
+            break;
+        default:
+            console.warn(`[PROCESS] Modelo desconocido '${model}'. Usando prompt de 'upscaling' por defecto.`);
+            prompt = 'a satellite image with 4x resolution, high quality, high detail, sharp focus, 8k, UHD, professional';
+    }
+
+    console.log(`[PROCESS] Job ${jobId} usando modelo: '${model}'`);
+    console.log(`[PROCESS] Prompt generado: "${prompt}"`);
+
     try {
         updateJobProgress(jobId, { message: "Leyendo metadatos GeoTIFF..." });
 
@@ -252,7 +277,7 @@ async function processUpscale(jobId, file) {
         let tilesImproved = 0;
         updateJobProgress(jobId, { message: `Mejorando grillas con IA...`, processed: 0 });
         const upgradePromises = originalGsPaths.map(gsPath =>
-            callBusinessService(URLS.upscale, { imagen_gs: gsPath }).then(result => {
+            callBusinessService(URLS.upscale, { imagen_gs: gsPath, prompt: prompt }).then(result => {
                 tilesImproved++;
                 updateJobProgress(jobId, { message: `Mejorando grilla ${tilesImproved}/${tiles.length}`, processed: tilesImproved });
                 return result;
@@ -378,10 +403,14 @@ app.post('/api/upscale-from-gs', async (req, res, next) => {
 
 app.post('/api/upscale-from-url', async (req, res) => {
     try {
-        const { geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl } = req.body;
+        const { geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model } = req.body;
 
         if (!geotiffUrl) {
             throw new Error('La respuesta de GEE no incluyó la URL del archivo GeoTIFF (geotiffUrl). No se puede procesar.');
+        }
+
+        if (!model) {
+            throw new Error('Falta el campo "model" en el cuerpo de la petición.');
         }
 
         console.log(`[API] Descargando GeoTIFF desde URL de GEE: ${geotiffUrl}`);
@@ -391,14 +420,13 @@ app.post('/api/upscale-from-url', async (req, res) => {
         }
         const imageBuffer = await imageResponse.buffer();
 
-        // El archivo que pasamos a processUpscale es ahora el GeoTIFF real
         const file = { buffer: imageBuffer, filename: `gee_image_${Date.now()}.tif` };
         const jobId = randomUUID();
         jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando desde GEE...', processed: 0, total: 0 }, satellitePreviewUrl: satellitePreviewUrl || null, satelliteTiffUrl: satelliteTiffUrl || null };
 
-        res.json({ jobId }); // Devolver el jobId inmediatamente
+        res.json({ jobId });
 
-        processUpscale(jobId, file);
+        processUpscale(jobId, file, model);
 
     } catch (e) {
         console.error("[API] Error en /api/upscale-from-url:", e);

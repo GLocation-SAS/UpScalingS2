@@ -11,7 +11,8 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/modules/map/views/map.css" />
   <link rel="stylesheet" href="/css/output.css">
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAItgLtvTSyFxwxeOu0EYGEwmAol4BmwL0&libraries=places"></script>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAItgLtvTSyFxwxeOu0EYGEwmAol4BmwL0&libraries=places"></script>
 </head>
 
 <body>
@@ -54,6 +55,17 @@
         </div>
 
         <div class="sidebar-section">
+          <label for="upscaling-model-select">Modelo de mejora</label>
+          <select id="upscaling-model-select" name="upscalingModel" class="form-control">
+            <option value="upscaling" selected>UpScaling</option>
+            <option value="building_footprint">Building footprint</option>
+            <option value="ways" disabled>Ways</option>
+            <option value="forest" disabled>Forest</option>
+            <option value="trees" disabled>Trees</option>
+          </select>
+        </div>
+
+        <div class="sidebar-section">
           <h4>Herramienta de selección</h4>
           <div class="tool-buttons">
             <button id="draw-rectangle" class="tool-btn" title="Dibujar rectángulo">
@@ -86,18 +98,14 @@
           </button>
         </div>
       </aside>
-      
+
       <div style="position: relative; flex: 1;">
         <div class="google-search-box">
           <input id="google-places-search" type="search" placeholder="Busca dirección o lugar" />
         </div>
-        
-        <div
-          id="<%= mapConfig.containerId %>"
-          class="map"
-          data-tile-url="<%= mapConfig.tileUrl %>"
-          data-center='<%- JSON.stringify(mapConfig.center) %>'
-          data-zoom="<%= mapConfig.zoom %>"
+
+        <div id="<%= mapConfig.containerId %>" class="map" data-tile-url="<%= mapConfig.tileUrl %>"
+          data-center='<%- JSON.stringify(mapConfig.center) %>' data-zoom="<%= mapConfig.zoom %>"
           data-logo="<%= mapConfig.maplibreLogo %>">
         </div>
       </div>
