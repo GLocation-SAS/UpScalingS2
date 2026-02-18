@@ -14,6 +14,7 @@ const { fromArrayBuffer } = require('geotiff');
 const storage = new Storage();
 const app = express();
 const PORT = process.env.PORT || 8080;
+const API_KEY = process.env.API_KEY ;
 
 const URLS = {
     token: 'https://gentoken-960956212831.us-central1.run.app',
@@ -44,10 +45,10 @@ app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',
         "default-src 'self'; " +
-        "script-src 'self' https://unpkg.com https://maps.googleapis.com blob:; " +
+        "script-src 'self' 'unsafe-inline' https://unpkg.com https://maps.googleapis.com https://places.googleapis.com blob:; " +
         "style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; " +
         "font-src 'self' https://fonts.gstatic.com; " +
-        "connect-src 'self' https://mt1.google.com https://maps.googleapis.com https://storage.googleapis.com https://unpkg.com; " +
+        "connect-src 'self' https://mt1.google.com https://maps.googleapis.com https://places.googleapis.com https://storage.googleapis.com https://unpkg.com; " +
         "img-src 'self' data: https://storage.googleapis.com https://mt1.google.com; " +
         "frame-src 'self';" +
         "worker-src 'self' blob:;"

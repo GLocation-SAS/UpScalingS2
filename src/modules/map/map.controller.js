@@ -1,7 +1,8 @@
 const { mapConfig, fetchGeeImage, fetchTiffCompuesto } = require("./map.services");
 
 const renderMap = (req, res) => {
-  res.render("map/views/map", { mapConfig });
+  const API_KEY = process.env.API_KEY;
+  res.render("map/views/map", { mapConfig, API_KEY });
 };
 
 const getGeeImageUrl = async (req, res) => {

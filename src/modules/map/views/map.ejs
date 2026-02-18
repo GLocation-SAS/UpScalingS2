@@ -11,8 +11,10 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/modules/map/views/map.css" />
   <link rel="stylesheet" href="/css/output.css">
-  <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAItgLtvTSyFxwxeOu0EYGEwmAol4BmwL0&libraries=places"></script>
+  <!-- API Key for new Google Places API -->
+  <script>
+    window.GOOGLE_PLACES_API_KEY = "<%= API_KEY %>";
+  </script>
 </head>
 
 <body>
@@ -101,7 +103,8 @@
 
       <div style="position: relative; flex: 1;">
         <div class="google-search-box">
-          <input id="google-places-search" type="search" placeholder="Busca dirección o lugar" />
+          <input id="google-places-search" type="search" placeholder="Busca dirección o lugar" autocomplete="off" />
+          <div id="places-suggestions" class="places-suggestions"></div>
         </div>
 
         <div id="<%= mapConfig.containerId %>" class="map" data-tile-url="<%= mapConfig.tileUrl %>"

@@ -219,29 +219,60 @@ body {
   color: #94a3b8;
 }
 
-/* Google Places Autocomplete Dropdown */
-.pac-container {
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(18, 47, 88, 0.15);
-  border: 1px solid #dbe6f5;
+/* ── Custom Places Suggestions Dropdown (New API) ── */
+.places-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   margin-top: 4px;
-  font-family: "Karla", "Segoe UI", sans-serif;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #dbe6f5;
+  box-shadow: 0 4px 12px rgba(18, 47, 88, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  display: none;
+  z-index: 1001;
 }
 
-.pac-item {
-  padding: 10px 14px;
-  font-size: 0.9rem;
-  border-top: 1px solid #f1f5f9;
+.suggestion-item {
+  padding: 12px 14px;
   cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.15s;
 }
 
-.pac-item:hover {
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
   background: #f8fbff;
 }
 
-.pac-item-query {
+.suggestion-main {
   font-size: 0.95rem;
   color: #1a1b1f;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.suggestion-secondary {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.suggestion-item.no-results,
+.suggestion-item.error {
+  color: #94a3b8;
+  cursor: default;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.suggestion-item.error {
+  color: #ef4444;
 }
 
 .progress-overlay {

@@ -106,42 +106,201 @@ if (mapElement) {
     maplibreLogo
   });
 
-  // --- Google Places Search ---
+  // --- Google Places Search (New API) ---
   let googleSearchMarker = null;
+  let searchTimeout = null;
 
   function setupGooglePlacesSearch() {
     const input = document.getElementById("google-places-search");
+    const suggestionsDiv = document.getElementById("places-suggestions");
     
-    if (!input) {
-      console.warn("Google Places search input not found");
+    if (!input || !suggestionsDiv) {
+      console.warn("Google Places search elements not found");
       return;
     }
 
-    const options = {
-      fields: ["formatted_address", "geometry", "name"],
-      componentRestrictions: { country: "co" } // Colombia, cambia el código del país si es necesario
-    };
+    const API_KEY = window.GOOGLE_PLACES_API_KEY;
+    if (!API_KEY || API_KEY === "undefined") {
+      console.error("Google Places API Key not found or invalid");
+      return;
+    }
 
-    const autocomplete = new google.maps.places.Autocomplete(input, options);
+    // Debounced autocomplete search
+    input.addEventListener("input", async (e) => {
+      const value = e.target.value.trim();
 
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
+      // Clear previous timeout
+      if (searchTimeout) clearTimeout(searchTimeout);
 
-      if (!place.geometry) {
-        alert("No se encontró la ubicación.");
+      // Clear suggestions if input is too short
+      if (value.length < 3) {
+        suggestionsDiv.innerHTML = "";
+        suggestionsDiv.style.display = "none";
         return;
       }
 
-      const location = place.geometry.location;
-      const lat = location.lat();
-      const lng = location.lng();
+      // Debounce: wait 300ms after user stops typing
+      searchTimeout = setTimeout(async () => {
+        try {
+          console.log("🔍 [Places API] Iniciando búsqueda...");
+          console.log("📝 Input:", value);
+          console.log("🔑 API Key (primeros 10 chars):", API_KEY.substring(0, 10) + "...");
+          
+          const requestBody = {
+            input: value,
+            languageCode: "es",
+            regionCode: "CO"
+          };
+          console.log("📦 Request body:", JSON.stringify(requestBody, null, 2));
+          
+          const response = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": API_KEY
+            },
+            body: JSON.stringify(requestBody)
+          });
+
+          console.log("📡 Response status:", response.status, response.statusText);
+          console.log("📋 Response headers:", [...response.headers.entries()]);
+
+          if (!response.ok) {
+            // Intentar leer el cuerpo de la respuesta de error
+            const errorText = await response.text();
+            console.error("❌ Error response body:", errorText);
+            
+            let errorMessage = `Error ${response.status}: ${response.statusText}`;
+            try {
+              const errorData = JSON.parse(errorText);
+              console.error("❌ Error data parsed:", errorData);
+              errorMessage = errorData.error?.message || errorData.message || errorMessage;
+            } catch (e) {
+              console.error("⚠️ Could not parse error as JSON");
+            }
+            
+            throw new Error(errorMessage);
+          }
+
+          const data = await response.json();
+          console.log("✅ Success! Suggestions received:", data.suggestions?.length || 0);
+          
+          // Clear previous suggestions
+          suggestionsDiv.innerHTML = "";
+
+          // Show suggestions
+          if (data.suggestions && data.suggestions.length > 0) {
+            data.suggestions.forEach(suggestion => {
+              const place = suggestion.placePrediction;
+              const div = document.createElement("div");
+              div.className = "suggestion-item";
+              div.innerHTML = `
+                <div class="suggestion-main">${place.text.text}</div>
+                ${place.structuredFormat?.secondaryText ? 
+                  `<div class="suggestion-secondary">${place.structuredFormat.secondaryText.text}</div>` : 
+                  ''}
+              `;
+              
+              // Click handler to select place
+              div.addEventListener("click", async () => {
+                await selectPlace(place.placeId, place.text.text);
+                input.value = place.text.text;
+                suggestionsDiv.innerHTML = "";
+                suggestionsDiv.style.display = "none";
+              });
+
+              suggestionsDiv.appendChild(div);
+            });
+            suggestionsDiv.style.display = "block";
+          } else {
+            suggestionsDiv.innerHTML = '<div class="suggestion-item no-results">No se encontraron resultados</div>';
+            suggestionsDiv.style.display = "block";
+          }
+        } catch (error) {
+          console.error("❌ [Places API] Error completo:", error);
+          suggestionsDiv.innerHTML = '<div class="suggestion-item error">Error al buscar ubicaciones</div>';
+          suggestionsDiv.style.display = "block";
+        }
+      }, 300);
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener("click", (e) => {
+      if (!input.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+        suggestionsDiv.innerHTML = "";
+        suggestionsDiv.style.display = "none";
+      }
+    });
+
+    // Clear suggestions on Escape key
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        suggestionsDiv.innerHTML = "";
+        suggestionsDiv.style.display = "none";
+      }
+    });
+  }
+
+  // Fetch place details and move map
+  async function selectPlace(placeId, placeName) {
+    const API_KEY = window.GOOGLE_PLACES_API_KEY;
+    
+    try {
+      console.log("📍 [Place Details] Obteniendo detalles...");
+      console.log("🆔 Place ID:", placeId);
+      console.log("📝 Place Name:", placeName);
+      
+      const response = await fetch(
+        `https://places.googleapis.com/v1/places/${placeId}`,
+        {
+          headers: {
+            "X-Goog-Api-Key": API_KEY,
+            "X-Goog-FieldMask": "location,viewport"
+          }
+        }
+      );
+
+      console.log("📡 Response status:", response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Error response body:", errorText);
+        
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          console.error("❌ Error data parsed:", errorData);
+          errorMessage = errorData.error?.message || errorData.message || errorMessage;
+        } catch (e) {
+          console.error("⚠️ Could not parse error as JSON");
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const placeDetails = await response.json();
+      console.log("✅ Place details received:", placeDetails);
+
+      if (!placeDetails.location) {
+        console.error("❌ No location in response");
+        alert("No se encontraron coordenadas para esta ubicación.");
+        return;
+      }
+
+      const lat = placeDetails.location.latitude;
+      const lng = placeDetails.location.longitude;
+      console.log("📍 Coordinates:", { lat, lng });
 
       // Ajustar vista del mapa
-      if (place.geometry.viewport) {
-        const sw = place.geometry.viewport.getSouthWest();
-        const ne = place.geometry.viewport.getNorthEast();
-        map.fitBounds([[sw.lng(), sw.lat()], [ne.lng(), ne.lat()]]);
+      if (placeDetails.viewport) {
+        const viewport = placeDetails.viewport;
+        console.log("🗺️ Fitting bounds to viewport");
+        map.fitBounds([
+          [viewport.low.longitude, viewport.low.latitude],
+          [viewport.high.longitude, viewport.high.latitude]
+        ]);
       } else {
+        console.log("🗺️ Centering map at coordinates");
         map.setCenter([lng, lat]);
         map.setZoom(14);
       }
@@ -152,7 +311,12 @@ if (mapElement) {
       googleSearchMarker = new maplibregl.Marker({ color: '#f40000ff' })
         .setLngLat([lng, lat])
         .addTo(map);
-    });
+
+      console.log(`✅ Successfully moved to: ${placeName}`);
+    } catch (error) {
+      console.error("❌ [Place Details] Error completo:", error);
+      alert("Error al obtener detalles de la ubicación.");
+    }
   }
 
   // --- Estado del dibujo ---
