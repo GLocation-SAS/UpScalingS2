@@ -207,7 +207,10 @@ async function processUpscale(jobId, file, model) {
     let prompt = '';
     switch (model) {
         case 'upscaling':
-            prompt = 'a satellite image with 4x resolution, high quality, high detail, sharp focus, 8k, UHD, professional';
+            prompt = `
+                    Positivo: Professional satellite orthophoto super-resolution, Sentinel-2 source. Upscaling from 10m to 1m GSD. Nadir view. Focus on coherent land cover textures and macro-geological features. Smooth rendering of continuous surfaces: agricultural patterns, forest canopies, water bodies, and defined urban blocks. Abstract generalization of materials. Photorealistic natural lighting, geographic consistency, high fidelity terrain. 
+                    Negativo: High-frequency noise, micro-details, individual vehicles, cars, people, street furniture, small bushes, sharp edges on small objects (<20m), visual artifacts, dithering, invented urban clutter, over-sharpened micro-textures, distorted geometry.
+                `;
             break;
         case 'building_footprint':
             prompt = 'a satellite image highlighting building footprints in bright red, high contrast, clearly defined edges';
