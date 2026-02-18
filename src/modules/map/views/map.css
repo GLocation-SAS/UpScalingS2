@@ -1,9 +1,4 @@
-:root {
-  color-scheme: light;
-  font-family: "Karla", "Segoe UI", sans-serif;
-  background: radial-gradient(circle at top, #eef7ff, #f8fbff 65%, #ffffff 100%);
-  color: #1a1b1f;
-}
+/* :root colors removed to use Tailwind */
 
 * {
   box-sizing: border-box;
@@ -21,7 +16,6 @@ body {
 
 .hero {
   padding: 24px 28px 12px;
-  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid #dbe6f5;
 }
@@ -46,16 +40,9 @@ body {
 
 .sidebar {
   width: 320px;
-  background: #ffffff;
   border-radius: 18px;
-  border: 1px solid #dbe6f5;
   box-shadow: 0 4px 12px rgba(18, 47, 88, 0.08);
   padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  max-height: calc(100vh - 140px);
-  overflow-y: auto;
 }
 
 .sidebar-header h3 {
@@ -85,7 +72,6 @@ body {
 
 .form-control {
   padding: 10px 12px;
-  border: 1px solid #dbe6f5;
   border-radius: 8px;
   font-size: 0.95rem;
   font-family: inherit;
@@ -94,7 +80,6 @@ body {
 
 .form-control:focus {
   outline: none;
-  border-color: #4f83ff;
 }
 
 .tool-buttons {
@@ -109,48 +94,21 @@ body {
   justify-content: center;
   gap: 6px;
   padding: 12px 16px;
-  border: 1px solid #dbe6f5;
-  background: #f8fbff;
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
-  color: #3f4a5e;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.tool-btn:hover {
-  background: #eef7ff;
-  border-color: #4f83ff;
-  color: #1f3b6d;
-}
-
-.tool-btn.active {
-  background: #4f83ff;
-  border-color: #4f83ff;
-  color: #ffffff;
-}
-
-.tool-btn.danger {
-  border-color: #ffcdd2;
-  color: #c62828;
-}
-
-.tool-btn.danger:hover {
-  background: #ffebee;
-  border-color: #ef5350;
-}
 
 .geometry-display {
   width: 100%;
   padding: 12px;
-  border: 1px solid #dbe6f5;
   border-radius: 8px;
   font-family: "Consolas", "Monaco", monospace;
   font-size: 0.8rem;
-  background: #f8fbff;
   resize: vertical;
-  color: #1a1b1f;
 }
 
 .capture-btn {
@@ -160,8 +118,6 @@ body {
   justify-content: center;
   gap: 8px;
   padding: 14px 20px;
-  background: #4f83ff;
-  color: #ffffff;
   border: none;
   border-radius: 10px;
   font-size: 1rem;
@@ -202,7 +158,6 @@ body {
 .google-search-box input {
   width: 300px;
   padding: 10px 14px;
-  border: 1px solid #dbe6f5;
   border-radius: 6px;
   font-size: 0.95rem;
   font-family: inherit;
@@ -211,12 +166,6 @@ body {
 
 .google-search-box input:focus {
   outline: none;
-  border-color: #4f83ff;
-  box-shadow: 0 0 0 3px rgba(79, 131, 255, 0.1);
-}
-
-.google-search-box input::placeholder {
-  color: #94a3b8;
 }
 
 /* ── Custom Places Suggestions Dropdown (New API) ── */
@@ -402,3 +351,5 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Dark mode overrides removed to use Tailwind directly in HTML */

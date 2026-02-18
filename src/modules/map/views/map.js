@@ -323,6 +323,11 @@ if (mapElement) {
   let drawingMode = false;
   let startLngLat = null;
 
+  // Restricciones de área
+  const MAX_AREA = 42250000; // 42 km²
+  const MAX_WIDTH = 6500;     // metros
+  const MAX_HEIGHT = 6500;    // metros
+
   // GeoJSON vacio para el rectangulo
   const emptyGeoJSON = {
     type: "FeatureCollection",
@@ -345,6 +350,18 @@ if (mapElement) {
       </div>
   `;
   mapContainer.appendChild(loadingOverlay);
+
+  // --- Area warning overlay ---
+  const areaWarning = document.createElement("div");
+  areaWarning.id = "area-warning";
+  areaWarning.style.cssText = `
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(239, 68, 68, 0.95); color: white; padding: 12px 20px;
+    border-radius: 8px; display: none; z-index: 1001; font-size: 14px;
+    font-weight: 500; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    pointer-events: none; max-width: 90%; text-align: center;
+  `;
+  mapContainer.appendChild(areaWarning);
 
   // --- Inicializar capas de dibujo cuando el mapa cargue ---
   map.on("load", () => {
@@ -410,6 +427,73 @@ if (mapElement) {
 
   // --- Funciones de dibujo ---
 
+  // Calcular distancia en metros usando Haversine
+  function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Radio de la Tierra en metros
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lng2 - lng1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  }
+
+  // Calcular dimensiones y área del rectángulo
+  function calculateRectangleDimensions(lngLat1, lngLat2) {
+    const minLng = Math.min(lngLat1.lng, lngLat2.lng);
+    const maxLng = Math.max(lngLat1.lng, lngLat2.lng);
+    const minLat = Math.min(lngLat1.lat, lngLat2.lat);
+    const maxLat = Math.max(lngLat1.lat, lngLat2.lat);
+
+    // Calcular ancho y alto en metros
+    const width = calculateDistance(minLat, minLng, minLat, maxLng);
+    const height = calculateDistance(minLat, minLng, maxLat, minLng);
+    const area = width * height;
+
+    return { width, height, area };
+  }
+
+  // Verificar si las dimensiones exceden los límites
+  function checkDimensionLimits(lngLat1, lngLat2) {
+    const { width, height, area } = calculateRectangleDimensions(lngLat1, lngLat2);
+    
+    const errors = [];
+    if (area > MAX_AREA) {
+      errors.push(`Área: ${(area / 1_000_000).toFixed(2)} km² (máx: ${MAX_AREA / 1_000_000} km²)`);
+    }
+    if (width > MAX_WIDTH) {
+      errors.push(`Ancho: ${Math.round(width)}m (máx: ${MAX_WIDTH}m)`);
+    }
+    if (height > MAX_HEIGHT) {
+      errors.push(`Alto: ${Math.round(height)}m (máx: ${MAX_HEIGHT}m)`);
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      dimensions: { width, height, area }
+    };
+  }
+
+  // Mostrar advertencia de área
+  function showAreaWarning(errors) {
+    areaWarning.innerHTML = `
+      <div style="font-weight: 600; margin-bottom: 4px;">⚠️ El área dibujada excede los límites</div>
+      <div style="font-size: 12px;">${errors.join(' • ')}</div>
+    `;
+    areaWarning.style.display = "block";
+  }
+
+  // Ocultar advertencia de área
+  function hideAreaWarning() {
+    areaWarning.style.display = "none";
+  }
+
   function makeRectangleGeoJSON(lngLat1, lngLat2) {
     const minLng = Math.min(lngLat1.lng, lngLat2.lng);
     const maxLng = Math.max(lngLat1.lng, lngLat2.lng);
@@ -458,6 +542,9 @@ if (mapElement) {
     const src = map.getSource("draw-rectangle-preview");
     if (src) src.setData(emptyGeoJSON);
 
+    // Ocultar advertencia
+    hideAreaWarning();
+
     console.log("✓ Drawing mode OFF");
   }
 
@@ -475,6 +562,14 @@ if (mapElement) {
 
     const preview = makeRectangleGeoJSON(startLngLat, e.lngLat);
     map.getSource("draw-rectangle-preview").setData(preview);
+
+    // Validar dimensiones en tiempo real
+    const validation = checkDimensionLimits(startLngLat, e.lngLat);
+    if (!validation.valid) {
+      showAreaWarning(validation.errors);
+    } else {
+      hideAreaWarning();
+    }
   });
 
   map.on("mouseup", (e) => {
@@ -489,6 +584,17 @@ if (mapElement) {
     if (dlng < 0.0001 && dlat < 0.0001) {
       // Click sin arrastrar, ignorar
       startLngLat = null;
+      hideAreaWarning();
+      return;
+    }
+
+    // Validar dimensiones finales
+    const validation = checkDimensionLimits(startLngLat, endLngLat);
+    if (!validation.valid) {
+      alert(`⚠️ El área dibujada excede los límites permitidos:\n\n${validation.errors.join('\n')}\n\nPor favor, dibuja un área más pequeña.`);
+      startLngLat = null;
+      map.getSource("draw-rectangle-preview").setData(emptyGeoJSON);
+      hideAreaWarning();
       return;
     }
 
@@ -510,7 +616,11 @@ if (mapElement) {
     const currentZoom = map.getZoom();
     window.currentRectangle = geoJSON;
     window.currentRectangleZoom = currentZoom;
-    console.log("✓ Rectangle captured:", geoJSON, "at zoom:", currentZoom);
+    window.currentRectangleDimensions = validation.dimensions;
+    console.log("✓ Rectangle captured:", geoJSON, "at zoom:", currentZoom, "dimensions:", validation.dimensions);
+
+    // Ocultar advertencia
+    hideAreaWarning();
 
     // Desactivar modo dibujo
     disableDrawing();
@@ -551,6 +661,8 @@ if (mapElement) {
 
       window.currentRectangle = null;
       window.currentRectangleZoom = null;
+      window.currentRectangleDimensions = null;
+      hideAreaWarning();
       setInactiveAll();
 
       // Remover capas GEE
@@ -613,6 +725,18 @@ if (mapElement) {
 
       if (!selectedDate) {
         alert("⚠️ Por favor, selecciona una fecha para Sentinel 2.");
+        return;
+      }
+
+      // Validar dimensiones antes de enviar
+      if (!window.currentRectangleDimensions) {
+        alert("⚠️ Error: No se pudieron validar las dimensiones del área. Por favor, dibuja el rectángulo nuevamente.");
+        return;
+      }
+
+      const { width, height, area } = window.currentRectangleDimensions;
+      if (area > MAX_AREA || width > MAX_WIDTH || height > MAX_HEIGHT) {
+        alert(`⚠️ El área seleccionada excede los límites permitidos:\n\nÁrea: ${(area / 1_000_000).toFixed(2)} km² (máx: ${MAX_AREA / 1_000_000} km²)\nAncho: ${Math.round(width)}m (máx: ${MAX_WIDTH}m)\nAlto: ${Math.round(height)}m (máx: ${MAX_HEIGHT}m)\n\nPor favor, dibuja un área más pequeña.`);
         return;
       }
 

@@ -12,15 +12,43 @@
   <link rel="stylesheet" href="/css/output.css">
 </head>
 
-<body>
-  <main class="layout">
-    <header class="hero relative z-10 p-6 flex justify-between items-center w-full mx-auto">
+<body class="bg-slate-200 dark:bg-primary/50 transition-colors duration-300">
+  <!-- Fondo -->
+  <div class="fixed inset-0 z-0 pointer-events-none opacity-20 dark:opacity-30">
+    <div
+      class="absolute inset-0 bg-[radial-gradient(#1f618c_1px,transparent_1px)] [background-size:40px_40px] dark:bg-[radial-gradient(#65a7db_1px,transparent_1px)] [background-size:40px_40px]">
+    </div>
+    <div class="absolute top-20 left-[10%] text-primary animate-float" style="animation-delay: 0s;">
+      <span class="material-icons-round text-8xl">satellite_alt</span>
+    </div>
+    <div class="absolute bottom-20 left-[15%] text-secondary animate-drift" style="animation-delay: 1s;">
+      <span class="material-icons-round text-7xl">location_on</span>
+    </div>
+    <div class="absolute top-1/4 right-[10%] text-accent animate-float" style="animation-delay: 2s;">
+      <span class="material-icons-round text-9xl rotate-45">search</span>
+    </div>
+    <div class="absolute bottom-1/4 right-[15%] text-tertiary opacity-50 animate-drift" style="animation-delay: 0.5s;">
+      <span class="material-icons-round text-8xl">travel_explore</span>
+    </div>
+    <svg class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full min-w-[1000px] min-h-[1000px]"
+      viewBox="0 0 1000 1000" aria-hidden="true">
+      <circle class="text-primary/20" cx="500" cy="500" fill="none" r="300" stroke="currentColor"
+        stroke-dasharray="10 20" stroke-width="1"></circle>
+      <circle class="text-secondary/20" cx="500" cy="500" fill="none" r="450" stroke="currentColor"
+        stroke-dasharray="5 15" stroke-width="1"></circle>
+    </svg>
+  </div>
+
+  <main class="layout relative z-10">
+    <header
+      class="hero relative z-10 p-6 flex justify-between items-center w-full mx-auto dark:bg-white/5 dark:backdrop-blur-md dark:border-white/10">
       <div class="flex items-center gap-2 group cursor-pointer relative">
         <img src="/public/img/Logo_Horizontal.png" alt="UpScalingS2" class="w-36 h-12 dark:hidden" />
         <img src="/public/img/Logo_Horizonal_Blanco.png" alt="UpScalingS2" class="w-36 h-12 hidden dark:block" />
       </div>
       <h1 class="text-5xl md:text-7xl font-extrabold tracking-tighter inline-block">
-        <span class="text-results dark:text-white">Resultado del Procesamiento</span><span class="text-primary dark:text-white"> | </span>
+        <span class="text-results dark:text-white">Resultado del Procesamiento</span><span
+          class="text-primary dark:text-white"> | </span>
         <span class="text-primary dark:text-white">UpScaling</span><span class="logo-s2-color">S2</span>
       </h1>
       <button class="p-2 flex rounded-full text-primary px-5  bg-secondary/30 dark:text-white transition-colors"
@@ -30,57 +58,71 @@
     </header>
 
     <section class="map-shell">
-      <aside class="sidebar">
+      <aside
+        class="sidebar flex flex-col gap-5 max-h-[calc(100vh-140px)] overflow-y-auto bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 shadow-md">
         <div class="sidebar-header">
-          <h3>Visor de Resultados</h3>
+          <h3 class="text-xl font-semibold text-slate-900 dark:text-white m-0">Visor de Resultados</h3>
         </div>
 
         <div class="sidebar-section">
-          <h4>Control de Capas</h4>
-          <div class="layer-switcher">
-            <input type="radio" id="view-improved" name="layer-toggle" value="improved" checked>
-            <label for="view-improved">Imagen Mejorada (IA)</label>
+          <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Control de Capas</h4>
+          <div
+            class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
+            <input type="radio" id="view-improved" name="layer-toggle" value="improved" checked class="accent-primary">
+            <label for="view-improved" class="cursor-pointer font-medium text-sm">Imagen Mejorada (IA)</label>
           </div>
-          <div class="layer-switcher">
-            <input type="radio" id="view-original" name="layer-toggle" value="original">
-            <label for="view-original">Imagen Original (Sentinel-2)</label>
+          <div
+            class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
+            <input type="radio" id="view-original" name="layer-toggle" value="original" class="accent-primary">
+            <label for="view-original" class="cursor-pointer font-medium text-sm">Imagen Original (Sentinel-2)</label>
           </div>
           <% if (resultData.satellitePreviewUrl) { %>
-          <div class="layer-switcher">
-            <input type="radio" id="view-satellite" name="layer-toggle" value="satellite">
-            <label for="view-satellite">Mapa Satelital (No Híbrido)</label>
-          </div>
-          <% } %>
+            <div
+              class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
+              <input type="radio" id="view-satellite" name="layer-toggle" value="satellite" class="accent-primary">
+              <label for="view-satellite" class="cursor-pointer font-medium text-sm">Mapa Satelital (No Híbrido)</label>
+            </div>
+            <% } %>
         </div>
 
         <div class="sidebar-section">
-          <h4>Opacidad de la capa superior</h4>
-          <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1" class="slider">
+          <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Opacidad de la capa superior</h4>
+          <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1"
+            class="slider w-full accent-primary">
         </div>
 
         <div class="sidebar-section">
-          <h4>Descargar</h4>
+          <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Descargar</h4>
           <div class="download-buttons">
-            <a href="<%= resultData.originalJpegUrl %>" class="download-btn"
+            <a href="<%= resultData.originalJpegUrl %>"
+              class="download-btn block p-3 text-center rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white hover:border-primary transition-all font-semibold text-sm"
               download="original_<%= jobId.substring(0,8) %>.jpeg">Original (JPEG)</a>
-            <a href="<%= resultData.improvedPngUrl %>" class="download-btn"
+            <a href="<%= resultData.improvedPngUrl %>"
+              class="download-btn block p-3 text-center rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white hover:border-primary transition-all font-semibold text-sm"
               download="mejorado_<%= jobId.substring(0,8) %>.png">Mejorado (PNG)</a>
-            <a href="<%= resultData.improvedTifUrl %>" class="download-btn primary"
+            <a href="<%= resultData.improvedTifUrl %>"
+              class="download-btn primary block p-3 text-center rounded-lg bg-primary text-white hover:bg-blue-700 transition-all font-semibold text-sm border-0"
               download="mejorado_<%= jobId.substring(0,8) %>.tif">Mejorado (GeoTIFF)</a>
           </div>
         </div>
 
         <div class="sidebar-section">
-          <a href="/map" class="download-btn primary">Seleccionar desde el mapa</a>
+          <a href="/map"
+            class="download-btn primary block p-3 text-center rounded-lg bg-primary text-white hover:bg-blue-700 transition-all font-semibold text-sm border-0">Seleccionar
+            desde el mapa</a>
         </div>
         <div class="sidebar-section">
-          <a href="/" class="download-btn secondary">Procesar otra imagen</a>
+          <a href="/"
+            class="download-btn secondary block p-3 text-center rounded-lg bg-accent text-white hover:bg-orange-600 transition-all font-semibold text-sm border-0">Procesar
+            otra imagen</a>
         </div>
       </aside>
 
-      <div id="<%= mapConfig.containerId %>" class="map" data-tile-url="<%= mapConfig.tileUrl %>"
-        data-logo="<%= mapConfig.maplibreLogo %>" data-bounds='<%- JSON.stringify(resultData.bounds) %>'
-        data-original-url="<%= resultData.originalJpegUrl %>" data-improved-url="<%= resultData.improvedPngUrl %>"
+      <div id="<%= mapConfig.containerId %>"
+        class="map flex-1 h-[calc(100vh-140px)] rounded-2xl border border-slate-200 dark:border-white/10 shadow-xl overflow-hidden"
+        data-tile-url="<%= mapConfig.tileUrl %>" data-logo="<%= mapConfig.maplibreLogo %>"
+        data-bounds='<%- JSON.stringify(resultData.bounds) %>' data-original-url="<%= resultData.originalJpegUrl %>"
+        data-improved-url="<%= resultData.improvedPngUrl %>"
         data-satellite-url="<%= resultData.satellitePreviewUrl || '' %>">
       </div>
     </section>

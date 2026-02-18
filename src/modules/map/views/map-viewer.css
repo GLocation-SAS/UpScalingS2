@@ -21,7 +21,6 @@ body {
 
 .hero {
   padding: 24px 28px 12px;
-  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid #dbe6f5;
 }
@@ -46,9 +45,7 @@ body {
 
 .sidebar {
   width: 320px;
-  background: #ffffff;
   border-radius: 18px;
-  border: 1px solid #dbe6f5;
   box-shadow: 0 4px 12px rgba(18, 47, 88, 0.08);
   padding: 20px;
   display: flex;
@@ -217,7 +214,6 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: #f8fbff;
   border-radius: 8px;
 }
 
@@ -255,28 +251,15 @@ body {
   text-decoration: none;
   font-weight: 600;
   border-radius: 8px;
-  border: 1px solid #dbe6f5;
-  background: #f8fbff;
-  color: #3f4a5e;
   font-size: 0.9rem;
   transition: all 0.2s;
 }
 
-.download-btn:hover {
-  background: #eef7ff;
-  border-color: #4f83ff;
-  color: #1f3b6d;
-}
-
 .download-btn.primary {
-  background: #4f83ff;
-  border-color: #4f83ff;
   color: #ffffff;
 }
 
 .download-btn.secondary {
-  background: #E98324;
-  border-color: #E98324;
   color: #ffffff;
 }
 

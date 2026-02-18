@@ -17,7 +17,7 @@
   </script>
 </head>
 
-<body>
+<body class="bg-slate-200 dark:bg-primary/50 transition-colors duration-300">
   <div id="progress-overlay" class="progress-overlay hidden">
     <div class="progress-card">
       <h2>Procesando tu imagen...</h2>
@@ -29,8 +29,35 @@
     </div>
   </div>
 
-  <main class="layout">
-    <header class="hero relative z-10 p-6 flex justify-between items-center w-full mx-auto">
+  <!-- Fondo -->
+  <div class="fixed inset-0 z-0 pointer-events-none opacity-20 dark:opacity-30">
+    <div
+      class="absolute inset-0 bg-[radial-gradient(#1f618c_1px,transparent_1px)] [background-size:40px_40px] dark:bg-[radial-gradient(#65a7db_1px,transparent_1px)] [background-size:40px_40px]">
+    </div>
+    <div class="absolute top-20 left-[10%] text-primary animate-float" style="animation-delay: 0s;">
+      <span class="material-icons-round text-8xl">satellite_alt</span>
+    </div>
+    <div class="absolute bottom-20 left-[15%] text-secondary animate-drift" style="animation-delay: 1s;">
+      <span class="material-icons-round text-7xl">location_on</span>
+    </div>
+    <div class="absolute top-1/4 right-[10%] text-accent animate-float" style="animation-delay: 2s;">
+      <span class="material-icons-round text-9xl rotate-45">search</span>
+    </div>
+    <div class="absolute bottom-1/4 right-[15%] text-tertiary opacity-50 animate-drift" style="animation-delay: 0.5s;">
+      <span class="material-icons-round text-8xl">travel_explore</span>
+    </div>
+    <svg class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full min-w-[1000px] min-h-[1000px]"
+      viewBox="0 0 1000 1000" aria-hidden="true">
+      <circle class="text-primary/20" cx="500" cy="500" fill="none" r="300" stroke="currentColor"
+        stroke-dasharray="10 20" stroke-width="1"></circle>
+      <circle class="text-secondary/20" cx="500" cy="500" fill="none" r="450" stroke="currentColor"
+        stroke-dasharray="5 15" stroke-width="1"></circle>
+    </svg>
+  </div>
+
+  <main class="layout relative z-10">
+    <header
+      class="hero relative z-10 p-6 flex justify-between items-center w-full mx-auto dark:bg-white/5 dark:backdrop-blur-md dark:border-white/10">
       <div class="flex items-center gap-2 group cursor-pointer relative">
         <img src="/public/img/Logo_Horizontal.png" alt="UpScalingS2" class="w-36 h-12 dark:hidden" />
         <img src="/public/img/Logo_Horizonal_Blanco.png" alt="UpScalingS2" class="w-36 h-12 hidden dark:block" />
@@ -46,19 +73,24 @@
       </button>
     </header>
     <section class="map-shell">
-      <aside class="sidebar">
+      <aside
+        class="sidebar flex flex-col gap-5 max-h-[calc(100vh-140px)] overflow-y-auto bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 shadow-md">
         <div class="sidebar-header">
-          <h3>Herramientas</h3>
+          <h3 class="text-xl font-semibold text-slate-900 dark:text-white m-0">Herramientas</h3>
         </div>
 
         <div class="sidebar-section">
-          <label for="date-picker">Fecha Sentinel 2</label>
-          <input type="date" id="date-picker" class="form-control" />
+          <label for="date-picker" class="block mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Fecha
+            Sentinel 2</label>
+          <input type="date" id="date-picker"
+            class="form-control w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-primary dark:focus:border-primary transition-colors" />
         </div>
 
         <div class="sidebar-section">
-          <label for="upscaling-model-select">Modelo de mejora</label>
-          <select id="upscaling-model-select" name="upscalingModel" class="form-control">
+          <label for="upscaling-model-select"
+            class="block mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Modelo de mejora</label>
+          <select id="upscaling-model-select" name="upscalingModel"
+            class="form-control w-full px-3 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-primary dark:focus:border-primary transition-colors cursor-pointer">
             <option value="upscaling" selected>UpScaling</option>
             <option value="building_footprint">Building footprint</option>
             <option value="ways" disabled>Ways</option>
@@ -68,15 +100,19 @@
         </div>
 
         <div class="sidebar-section">
-          <h4>Herramienta de selección</h4>
-          <div class="tool-buttons">
-            <button id="draw-rectangle" class="tool-btn" title="Dibujar rectángulo">
+          <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Herramienta de selección</h4>
+          <div class="tool-buttons grid grid-cols-1 gap-2.5">
+            <button id="draw-rectangle"
+              class="tool-btn flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white hover:border-primary dark:hover:border-primary transition-all font-medium text-sm group"
+              title="Dibujar rectángulo">
               <svg width="20" height="20" viewBox="0 0 20 20">
                 <rect x="3" y="4" width="14" height="12" stroke="currentColor" stroke-width="2" fill="none" />
               </svg>
               Rectángulo
             </button>
-            <button id="delete-all" class="tool-btn danger" title="Limpiar">
+            <button id="delete-all"
+              class="tool-btn danger flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-red-100 dark:border-red-900/50 bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-400 dark:hover:border-red-500 transition-all font-medium text-sm"
+              title="Limpiar">
               <svg width="20" height="20" viewBox="0 0 20 20">
                 <path d="M6 2h8v2H6V2zm-2 4h12v12H4V6zm3 2v8h2V8H7zm4 0v8h2V8h-2z" fill="currentColor" />
               </svg>
@@ -86,13 +122,15 @@
         </div>
 
         <div class="sidebar-section">
-          <label>Geometría capturada</label>
-          <textarea id="geometry-output" class="geometry-display" rows="6" readonly
-            placeholder="La geometría aparecerá aquí..."></textarea>
+          <label class="block mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Geometría capturada</label>
+          <textarea id="geometry-output"
+            class="geometry-display w-full p-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-mono text-xs resize-y focus:outline-none focus:border-primary dark:focus:border-primary"
+            rows="6" readonly placeholder="La geometría aparecerá aquí..."></textarea>
         </div>
 
         <div class="sidebar-section">
-          <button id="capture-btn" class="capture-btn">
+          <button id="capture-btn"
+            class="capture-btn flex items-center justify-center gap-2 w-full py-3.5 px-5 rounded-xl bg-primary text-white font-semibold shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-base border-0">
             <svg width="18" height="18" viewBox="0 0 20 20">
               <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11h-2V9h2v4zm0-5h-2V6h2v2z" fill="currentColor" />
             </svg>
@@ -103,13 +141,17 @@
 
       <div style="position: relative; flex: 1;">
         <div class="google-search-box">
-          <input id="google-places-search" type="search" placeholder="Busca dirección o lugar" autocomplete="off" />
-          <div id="places-suggestions" class="places-suggestions"></div>
+          <input id="google-places-search" type="search" placeholder="Busca dirección o lugar" autocomplete="off"
+            class="w-[300px] px-3.5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm transition-all" />
+          <div id="places-suggestions"
+            class="places-suggestions bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-xl rounded-lg overflow-hidden mt-1">
+          </div>
         </div>
 
-        <div id="<%= mapConfig.containerId %>" class="map" data-tile-url="<%= mapConfig.tileUrl %>"
-          data-center='<%- JSON.stringify(mapConfig.center) %>' data-zoom="<%= mapConfig.zoom %>"
-          data-logo="<%= mapConfig.maplibreLogo %>">
+        <div id="<%= mapConfig.containerId %>"
+          class="map flex-1 h-[calc(100vh-140px)] rounded-2xl border border-slate-200 dark:border-white/10 shadow-xl overflow-hidden"
+          data-tile-url="<%= mapConfig.tileUrl %>" data-center='<%- JSON.stringify(mapConfig.center) %>'
+          data-zoom="<%= mapConfig.zoom %>" data-logo="<%= mapConfig.maplibreLogo %>">
         </div>
       </div>
     </section>
