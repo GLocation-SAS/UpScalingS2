@@ -234,7 +234,7 @@ function updateJobProgress(jobId, progressUpdate) {
     }
 }
 
-async function processUpscale(jobId, file, model) {
+async function processUpscale(jobId, file, model, mapReferenceUrl = null) {
     let prompt = '';
     switch (model) {
         case 'upscaling':
@@ -311,6 +311,21 @@ async function processUpscale(jobId, file, model) {
 
         console.log(`[PROCESS] Dimensiones de imagen: ${width}x${height}`);
 
+        // Cargar imagen de referencia si existe
+        let mapReferenceImage = null;
+        let mapMetadata = null;
+        if (mapReferenceUrl) {
+            try {
+                console.log(`[PROCESS] Cargando imagen de referencia desde: ${mapReferenceUrl}`);
+                const mapBuffer = await downloadFromUrl(mapReferenceUrl);
+                mapReferenceImage = sharp(mapBuffer);
+                mapMetadata = await mapReferenceImage.metadata();
+                console.log(`[PROCESS] Dimensiones de referencia: ${mapMetadata.width}x${mapMetadata.height}`);
+            } catch (err) {
+                console.warn(`[PROCESS] Advertencia: No se pudo cargar la imagen de referencia (${err.message}). Se continuará solo con Sentinel-2.`);
+            }
+        }
+
         const tiles = [];
         for (let y = 0; y < height; y += TILE_SIZE) {
             for (let x = 0; x < width; x += TILE_SIZE) {
@@ -329,16 +344,54 @@ async function processUpscale(jobId, file, model) {
             const tileBuffer = await jpegImage.extract({ left: tile.x, top: tile.y, width: tile.width, height: tile.height }).toBuffer();
             const destPath = `${BUCKET_BASE_PATH}/grillas_originales/${jobId}/tile_${tile.x}_${tile.y}.jpeg`;
             const gsPath = await uploadToDocs(tileBuffer, destPath);
+
+            let referenceGsPath = null;
+            if (mapReferenceImage && mapMetadata) {
+                try {
+                    // Calcular escala entre Sentinel-2 (width/height) y Referencia (mapMetadata.width/height)
+                    const scaleX = mapMetadata.width / width;
+                    const scaleY = mapMetadata.height / height;
+
+                    const refX = Math.floor(tile.x * scaleX);
+                    const refY = Math.floor(tile.y * scaleY);
+                    const refW = Math.floor(tile.width * scaleX);
+                    const refH = Math.floor(tile.height * scaleY);
+
+                    // Asegurar que la extracción esté dentro de los límites de la imagen de referencia
+                    const safeRefX = Math.max(0, Math.min(refX, mapMetadata.width - 1));
+                    const safeRefY = Math.max(0, Math.min(refY, mapMetadata.height - 1));
+                    const safeRefW = Math.min(refW, mapMetadata.width - safeRefX);
+                    const safeRefH = Math.min(refH, mapMetadata.height - safeRefY);
+
+                    if (safeRefW > 0 && safeRefH > 0) {
+                        const refTileBuffer = await mapReferenceImage.extract({
+                            left: safeRefX,
+                            top: safeRefY,
+                            width: safeRefW,
+                            height: safeRefH
+                        }).toBuffer();
+                        const refDestPath = `${BUCKET_BASE_PATH}/grillas_referencia/${jobId}/tile_${tile.x}_${tile.y}.jpeg`;
+                        referenceGsPath = await uploadToDocs(refTileBuffer, refDestPath);
+                    }
+                } catch (err) {
+                    console.warn(`[PROCESS] Error extrayendo tile de referencia en x:${tile.x}, y:${tile.y}: ${err.message}`);
+                }
+            }
+
             originalsUploaded++;
             updateJobProgress(jobId, { message: `Subiendo grilla original ${originalsUploaded}/${tiles.length}`, processed: originalsUploaded });
-            return gsPath;
+            return { gsPath, referenceGsPath };
         });
-        const originalGsPaths = await Promise.all(originalUploadPromises);
+        const tileGsPaths = await Promise.all(originalUploadPromises);
 
         let tilesImproved = 0;
         updateJobProgress(jobId, { message: `Mejorando grillas con IA...`, processed: 0 });
-        const upgradePromises = originalGsPaths.map(gsPath =>
-            callBusinessService(URLS.upscale, { imagen_gs: gsPath, prompt: prompt }).then(result => {
+        const upgradePromises = tileGsPaths.map(paths =>
+            callBusinessService(URLS.upscale, {
+                imagen_gs: paths.gsPath,
+                imagen_referencia_gs: paths.referenceGsPath,
+                prompt: prompt
+            }).then(result => {
                 tilesImproved++;
                 updateJobProgress(jobId, { message: `Mejorando grilla ${tilesImproved}/${tiles.length}`, processed: tilesImproved });
                 return result;
@@ -495,7 +548,7 @@ app.post('/api/upscale-from-url', async (req, res) => {
 
         res.json({ jobId });
 
-        processUpscale(jobId, file, model);
+        processUpscale(jobId, file, model, satellitePreviewUrl);
 
     } catch (e) {
         console.error("[API] Error en /api/upscale-from-url:", e);
