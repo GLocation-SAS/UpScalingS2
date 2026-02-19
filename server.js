@@ -14,7 +14,7 @@ const { fromArrayBuffer } = require('geotiff');
 const storage = new Storage();
 const app = express();
 const PORT = process.env.PORT || 8080;
-const API_KEY = process.env.API_KEY ;
+const API_KEY = process.env.API_KEY;
 
 const URLS = {
     token: 'https://gentoken-960956212831.us-central1.run.app',
@@ -113,20 +113,33 @@ function parseMultipartIncoming(req) {
                 const buffer = Buffer.concat(chunks);
                 const contentType = req.headers['content-type'] || '';
                 if (!contentType.includes('boundary=')) return resolve({ fields: {}, files: [] });
-                const boundary = `--${contentType.split('boundary=')[1]}`;
+                let boundaryStr = contentType.split('boundary=')[1];
+                if (boundaryStr) boundaryStr = boundaryStr.split(';')[0].trim();
+                const boundary = `--${boundaryStr}`;
                 const parts = bufferSplit(buffer, Buffer.from(boundary));
                 const files = [];
+                const fields = {};
                 for (const part of parts) {
                     const headerEndIndex = part.indexOf('\r\n\r\n');
                     if (headerEndIndex === -1) continue;
                     const headers = part.subarray(0, headerEndIndex).toString();
                     const filenameMatch = headers.match(/filename="([^"]+)"/);
+                    const nameMatch = headers.match(/name="([^"]+)"/);
                     if (filenameMatch) {
-                        const content = part.subarray(headerEndIndex + 4, part.length - 2);
+                        let content = part.subarray(headerEndIndex + 4);
+                        if (content.length >= 2 && content[content.length - 2] === 0x0d && content[content.length - 1] === 0x0a) {
+                            content = content.subarray(0, content.length - 2);
+                        }
                         files.push({ filename: filenameMatch[1], buffer: content });
+                    } else if (nameMatch) {
+                        let content = part.subarray(headerEndIndex + 4);
+                        if (content.length >= 2 && content[content.length - 2] === 0x0d && content[content.length - 1] === 0x0a) {
+                            content = content.subarray(0, content.length - 2);
+                        }
+                        fields[nameMatch[1]] = content.toString().trim();
                     }
                 }
-                resolve({ fields: {}, files });
+                resolve({ fields, files });
             } catch (err) { reject(err); }
         });
     });
@@ -150,29 +163,46 @@ async function uploadToDocs(fileBuffer, destinationPath) {
     return `gs://${BUCKET_NAME}/${destinationPath}`;
 }
 
-async function callBusinessService(url, payloadObj) {
+async function callBusinessService(url, payloadObj, attempts = 3) {
     const tokenUrl = `${URLS.token}/?url=${encodeURIComponent(url)}`;
-    const tokenResponse = await fetch(tokenUrl);
-    if (!tokenResponse.ok) {
-        const errorBody = await tokenResponse.text();
-        throw new Error(`Error obteniendo token (${tokenResponse.status}): ${errorBody}`);
+
+    for (let i = 0; i < attempts; i++) {
+        try {
+            const tokenResponse = await fetch(tokenUrl);
+            if (!tokenResponse.ok) {
+                const errorBody = await tokenResponse.text();
+                throw new Error(`Error obteniendo token (${tokenResponse.status}): ${errorBody}`);
+            }
+            const tokenData = await tokenResponse.json();
+            if (!tokenData.token) throw new Error(`Respuesta de token inválida`);
+            const token = tokenData.token;
+
+            const serviceResponse = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(payloadObj)
+            });
+
+            if (serviceResponse.status === 503 || serviceResponse.status === 429) {
+                console.warn(`[IA SERVICE] Intento ${i + 1} fallido (Status ${serviceResponse.status}). Reintentando en 3s...`);
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+            }
+
+            if (!serviceResponse.ok) {
+                const errorBody = await serviceResponse.text();
+                throw new Error(`IA Service Error (${serviceResponse.status}): ${errorBody}`);
+            }
+            return serviceResponse.json();
+        } catch (err) {
+            if (i === attempts - 1) throw err;
+            console.warn(`[IA SERVICE] Error en intento ${i + 1}: ${err.message}. Reintentando...`);
+            await new Promise(r => setTimeout(r, 2000));
+        }
     }
-    const tokenData = await tokenResponse.json();
-    if (!tokenData.token) throw new Error(`Respuesta de token inválida`);
-    const token = tokenData.token;
-    const serviceResponse = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(payloadObj)
-    });
-    if (!serviceResponse.ok) {
-        const errorBody = await serviceResponse.text();
-        throw new Error(`IA Service Error (${serviceResponse.status}): ${errorBody}`);
-    }
-    return serviceResponse.json();
 }
 
 // --- LÓGICA PRINCIPAL DE PROCESAMIENTO ---
@@ -235,17 +265,31 @@ async function processUpscale(jobId, file, model) {
 
     try {
         updateJobProgress(jobId, { message: "Leyendo metadatos GeoTIFF..." });
+        let realBounds = null;
 
         try {
-            const arrayBuffer = file.buffer.buffer.slice(file.buffer.byteOffset, file.buffer.byteOffset + file.buffer.byteLength);
+            let arrayBuffer;
+            if (file.buffer instanceof Buffer) {
+                arrayBuffer = file.buffer.buffer.slice(file.buffer.byteOffset, file.buffer.byteOffset + file.buffer.byteLength);
+            } else if (file.buffer instanceof ArrayBuffer) {
+                arrayBuffer = file.buffer;
+            } else {
+                arrayBuffer = Buffer.from(file.buffer).buffer;
+            }
+
             const tiff = await fromArrayBuffer(arrayBuffer);
             const image = await tiff.getImage();
-            const bbox = image.getBoundingBox();
-            realBounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
-            console.log(`[PROCESS] Coordenadas GeoTIFF extraídas:`, realBounds);
+            try {
+                const bbox = image.getBoundingBox();
+                realBounds = [[bbox[0], bbox[1]], [bbox[2], bbox[3]]];
+                console.log(`[PROCESS] Coordenadas GeoTIFF extraídas:`, realBounds);
+            } catch (bboxError) {
+                console.warn(`[PROCESS] Advertencia: No se pudieron extraer coordenadas del GeoTIFF (${bboxError.message}). Se usarán coordenadas por defecto.`);
+                realBounds = [[-74.20, 4.60], [-74.00, 4.80]];
+            }
         } catch (geotiffError) {
-            console.error("[PROCESS] Error Crítico: El archivo proporcionado no es un GeoTIFF válido.", geotiffError);
-            throw new Error("El archivo de entrada debe ser un GeoTIFF válido para extraer las coordenadas.");
+            console.warn("[PROCESS] Advertencia: No se pudo leer como GeoTIFF. Procesando como imagen TIFF estándar.", geotiffError.message);
+            realBounds = [[-74.20, 4.60], [-74.00, 4.80]];
         }
 
         const TILE_SIZE = 1024;
@@ -257,12 +301,25 @@ async function processUpscale(jobId, file, model) {
         const originalPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${originalJpegPath}`;
 
         const jpegImage = sharp(jpegBuffer);
-        const { width, height } = await jpegImage.metadata();
+        const metadata = await jpegImage.metadata();
+        const width = metadata.width;
+        const height = metadata.height;
+
+        if (!width || !height) {
+            throw new Error("No se pudieron determinar las dimensiones de la imagen.");
+        }
+
+        console.log(`[PROCESS] Dimensiones de imagen: ${width}x${height}`);
 
         const tiles = [];
         for (let y = 0; y < height; y += TILE_SIZE) {
             for (let x = 0; x < width; x += TILE_SIZE) {
-                tiles.push({ x, y, width: Math.min(TILE_SIZE, width - x), height: Math.min(TILE_SIZE, height - y) });
+                const tileWidth = Math.min(TILE_SIZE, width - x);
+                const tileHeight = Math.min(TILE_SIZE, height - y);
+                // Asegurar que las dimensiones sean positivas y mayores que cero
+                if (tileWidth > 0 && tileHeight > 0) {
+                    tiles.push({ x, y, width: tileWidth, height: tileHeight });
+                }
             }
         }
         updateJobProgress(jobId, { total: tiles.length, processed: 0 });
@@ -379,13 +436,14 @@ app.get('/api/progress/:jobId', (req, res) => {
 
 app.post('/api/upscale', async (req, res, next) => {
     try {
-        const { files } = await parseMultipartIncoming(req);
+        const { files, fields } = await parseMultipartIncoming(req);
         if (!files || files.length === 0) throw new Error('No se ha subido ningún archivo.');
+        const model = fields.model || 'upscaling';
         const jobId = randomUUID();
         jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ jobId }));
-        processUpscale(jobId, files[0]);
+        processUpscale(jobId, files[0], model);
     } catch (e) {
         console.error("Error en /api/upscale:", e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -394,15 +452,22 @@ app.post('/api/upscale', async (req, res, next) => {
 })
 
 app.post('/api/upscale-from-gs', async (req, res, next) => {
-    const { gsPath } = await parseJsonBody(req);
-    if (!gsPath) throw new Error('Falta el campo "gsPath" en el cuerpo de la petición.');
-    const fileBuffer = await downloadFromGCS(gsPath);
-    const file = { buffer: fileBuffer, filename: path.basename(gsPath) };
-    const jobId = randomUUID();
-    jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ jobId }));
-    processUpscale(jobId, file);
+    try {
+        const { gsPath, model } = await parseJsonBody(req);
+        if (!gsPath) throw new Error('Falta el campo "gsPath" en el cuerpo de la petición.');
+        const selectedModel = model || 'upscaling';
+        const fileBuffer = await downloadFromGCS(gsPath);
+        const file = { buffer: fileBuffer, filename: path.basename(gsPath) };
+        const jobId = randomUUID();
+        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando...', processed: 0, total: 0 } };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jobId }));
+        processUpscale(jobId, file, selectedModel);
+    } catch (e) {
+        console.error("Error en /api/upscale-from-gs:", e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+    }
 })
 
 app.post('/api/upscale-from-url', async (req, res) => {
