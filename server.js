@@ -251,6 +251,27 @@ async function processUpscale(jobId, file, model, mapReferenceUrl = null, custom
                         Negativo: High-frequency noise, micro-details, individual vehicles, cars, people, street furniture, small bushes, sharp edges on small objects (<20m), visual artifacts, dithering, invented urban clutter, over-sharpened micro-textures, distorted geometry.
                     `;
                 break;
+            case 'upscaling_ndvi':
+                prompt = `
+                        Positive Prompt:
+
+Output requirement: Generate a super-resolved photorealistic RGB satellite orthophoto at 1m GSD derived from a 10m Sentinel-2 source image. The final output must be a natural-color nadir-view orthophoto (not an NDVI map, not false color).
+
+Use the accompanying NDVI vegetation index image strictly as structural guidance to enhance vegetation density, canopy texture continuity, and agricultural pattern coherence. The NDVI must inform vegetation vigor distribution but must not influence coloration.
+
+Focus on large-scale land cover consistency and macro-texture realism: agricultural parcels, forest masses, water bodies, terrain transitions, and defined urban blocks. Maintain geographic plausibility and terrain fidelity.
+
+Render smooth, continuous surfaces with realistic natural lighting and atmospheric consistency. Vegetation should appear denser and structurally coherent where NDVI values are higher, while low NDVI areas should reflect sparse or stressed vegetation in a physically plausible way.
+
+Negative Prompt:
+
+Do not generate NDVI-style coloration, heatmaps, or false-color imagery.
+Avoid hallucinated micro-details such as individual vehicles, people, street furniture, small isolated trees, or objects smaller than 20m.
+No artificial urban clutter, no invented roads, no distorted parcel geometry.
+Avoid over-sharpening, excessive contrast, high-frequency noise, dithering artifacts, or unrealistic micro-textures.
+Preserve large-scale spatial coherence and avoid synthetic patterns inconsistent with satellite imagery.
+                    `;
+                break;
             case 'building_footprint':
                 prompt = 'a satellite image highlighting building footprints in bright red, high contrast, clearly defined edges';
                 break;
@@ -534,7 +555,7 @@ app.post('/api/upscale-from-gs', async (req, res, next) => {
 
 app.post('/api/upscale-from-url', async (req, res) => {
     try {
-        const { geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model } = req.body;
+        const { geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, ndviJpegUrl } = req.body;
 
         if (!geotiffUrl) {
             throw new Error('La respuesta de GEE no incluyó la URL del archivo GeoTIFF (geotiffUrl). No se puede procesar.');
@@ -557,7 +578,13 @@ app.post('/api/upscale-from-url', async (req, res) => {
 
         res.json({ jobId });
 
-        processUpscale(jobId, file, model, satellitePreviewUrl, req.body.prompt);
+        let referenceImage = satellitePreviewUrl;
+        if (model === 'upscaling_ndvi') {
+            referenceImage = ndviJpegUrl || null;
+            if (!referenceImage) console.warn('[API] upscaling_ndvi seleccionado pero no se recibió ndviJpegUrl');
+        }
+
+        processUpscale(jobId, file, model, referenceImage, req.body.prompt);
 
     } catch (e) {
         console.error("[API] Error en /api/upscale-from-url:", e);

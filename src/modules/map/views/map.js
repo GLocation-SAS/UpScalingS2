@@ -54,13 +54,13 @@ function handleJobProgress(jobId) {
   };
 }
 
-async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt = null) {
+async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt = null, ndviJpegUrl = null) {
   if (!jpegUrl) return null;
   showProgress("Iniciando mejora con IA...");
   const response = await fetch("/api/upscale-from-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt })
+    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt, ndviJpegUrl })
   });
 
   if (!response.ok) {
@@ -817,8 +817,11 @@ if (mapElement) {
           tiffError = tiffResult.reason?.message || "Error al conectar con TIFF compuesto";
         }
 
-        if (geeData?.url) {
+        // Añadir capa GEE al mapa dependiendo del modelo seleccionado
+        if (geeData?.url && selectedModel !== 'upscaling_ndvi') {
           addGeeLayerToMap(geeData.url, selectedDate, geometry);
+        } else if (geeData?.ndviTileUrl && selectedModel === 'upscaling_ndvi') {
+          addGeeLayerToMap(geeData.ndviTileUrl, selectedDate, geometry);
         }
 
         if (geeError) {
@@ -843,6 +846,8 @@ if (mapElement) {
           console.warn("Advertencia satelital:", tiffError);
         }
 
+        const ndviJpegUrl = geeData?.ndviJpegUrl || null;
+
         loadingOverlay.style.display = "none";
 
         const customPromptInput = document.getElementById("custom-prompt-input");
@@ -850,7 +855,7 @@ if (mapElement) {
           ? customPromptInput.value.trim()
           : null;
 
-        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, selectedModel, customPrompt);
+        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, selectedModel, customPrompt, ndviJpegUrl);
         handleJobProgress(jobId);
       } catch (error) {
         alert(`⚠️ Error: ${error.message}`);
