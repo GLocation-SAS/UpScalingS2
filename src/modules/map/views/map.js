@@ -54,13 +54,13 @@ function handleJobProgress(jobId) {
   };
 }
 
-async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model) {
+async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt = null) {
   if (!jpegUrl) return null;
   showProgress("Iniciando mejora con IA...");
   const response = await fetch("/api/upscale-from-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model })
+    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt })
   });
 
   if (!response.ok) {
@@ -113,7 +113,7 @@ if (mapElement) {
   function setupGooglePlacesSearch() {
     const input = document.getElementById("google-places-search");
     const suggestionsDiv = document.getElementById("places-suggestions");
-    
+
     if (!input || !suggestionsDiv) {
       console.warn("Google Places search elements not found");
       return;
@@ -145,14 +145,14 @@ if (mapElement) {
           console.log("🔍 [Places API] Iniciando búsqueda...");
           console.log("📝 Input:", value);
           console.log("🔑 API Key (primeros 10 chars):", API_KEY.substring(0, 10) + "...");
-          
+
           const requestBody = {
             input: value,
             languageCode: "es",
             regionCode: "CO"
           };
           console.log("📦 Request body:", JSON.stringify(requestBody, null, 2));
-          
+
           const response = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
             method: "POST",
             headers: {
@@ -169,7 +169,7 @@ if (mapElement) {
             // Intentar leer el cuerpo de la respuesta de error
             const errorText = await response.text();
             console.error("❌ Error response body:", errorText);
-            
+
             let errorMessage = `Error ${response.status}: ${response.statusText}`;
             try {
               const errorData = JSON.parse(errorText);
@@ -178,13 +178,13 @@ if (mapElement) {
             } catch (e) {
               console.error("⚠️ Could not parse error as JSON");
             }
-            
+
             throw new Error(errorMessage);
           }
 
           const data = await response.json();
           console.log("✅ Success! Suggestions received:", data.suggestions?.length || 0);
-          
+
           // Clear previous suggestions
           suggestionsDiv.innerHTML = "";
 
@@ -196,11 +196,11 @@ if (mapElement) {
               div.className = "suggestion-item";
               div.innerHTML = `
                 <div class="suggestion-main">${place.text.text}</div>
-                ${place.structuredFormat?.secondaryText ? 
-                  `<div class="suggestion-secondary">${place.structuredFormat.secondaryText.text}</div>` : 
+                ${place.structuredFormat?.secondaryText ?
+                  `<div class="suggestion-secondary">${place.structuredFormat.secondaryText.text}</div>` :
                   ''}
               `;
-              
+
               // Click handler to select place
               div.addEventListener("click", async () => {
                 await selectPlace(place.placeId, place.text.text);
@@ -244,12 +244,12 @@ if (mapElement) {
   // Fetch place details and move map
   async function selectPlace(placeId, placeName) {
     const API_KEY = window.GOOGLE_PLACES_API_KEY;
-    
+
     try {
       console.log("📍 [Place Details] Obteniendo detalles...");
       console.log("🆔 Place ID:", placeId);
       console.log("📝 Place Name:", placeName);
-      
+
       const response = await fetch(
         `https://places.googleapis.com/v1/places/${placeId}`,
         {
@@ -265,7 +265,7 @@ if (mapElement) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("❌ Error response body:", errorText);
-        
+
         let errorMessage = `Error ${response.status}: ${response.statusText}`;
         try {
           const errorData = JSON.parse(errorText);
@@ -274,7 +274,7 @@ if (mapElement) {
         } catch (e) {
           console.error("⚠️ Could not parse error as JSON");
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -369,6 +369,15 @@ if (mapElement) {
     // Inicializar búsqueda de Google Places
     setupGooglePlacesSearch();
 
+    // --- Custom Prompt Toggle ---
+    const togglePromptBtn = document.getElementById("toggle-custom-prompt");
+    const promptContainer = document.getElementById("custom-prompt-container");
+    if (togglePromptBtn && promptContainer) {
+      togglePromptBtn.addEventListener("click", () => {
+        promptContainer.classList.toggle("hidden");
+      });
+    }
+
     // Source para el rectangulo que se esta dibujando (preview)
     map.addSource("draw-rectangle-preview", {
       type: "geojson",
@@ -436,8 +445,8 @@ if (mapElement) {
     const Δλ = (lng2 - lng1) * Math.PI / 180;
 
     const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;
@@ -461,7 +470,7 @@ if (mapElement) {
   // Verificar si las dimensiones exceden los límites
   function checkDimensionLimits(lngLat1, lngLat2) {
     const { width, height, area } = calculateRectangleDimensions(lngLat1, lngLat2);
-    
+
     const errors = [];
     if (area > MAX_AREA) {
       errors.push(`Área: ${(area / 1_000_000).toFixed(2)} km² (máx: ${MAX_AREA / 1_000_000} km²)`);
@@ -761,8 +770,8 @@ if (mapElement) {
 
         console.log("Enviando peticiones en paralelo...", { date: selectedDate, zoom: Math.floor(map.getZoom()), layer: "satellite" });
 
-        const zoom = window.currentRectangleZoom 
-          ? Math.floor(window.currentRectangleZoom) 
+        const zoom = window.currentRectangleZoom
+          ? Math.floor(window.currentRectangleZoom)
           : Math.floor(map.getZoom());
         const layer = "satellite";
 
@@ -818,7 +827,7 @@ if (mapElement) {
 
         const jpegUrl = geeData.jpegUrl || geeData.imageUrl || geeData.image_url || geeData.public_url;
         const geotiffUrl = geeData.geotiffUrl;
-        
+
         if (!jpegUrl) {
           throw new Error("La respuesta no incluye la URL de la imagen JPEG.");
         }
@@ -835,7 +844,13 @@ if (mapElement) {
         }
 
         loadingOverlay.style.display = "none";
-        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, selectedModel);
+
+        const customPromptInput = document.getElementById("custom-prompt-input");
+        const customPrompt = customPromptInput && !document.getElementById("custom-prompt-container").classList.contains("hidden")
+          ? customPromptInput.value.trim()
+          : null;
+
+        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, selectedModel, customPrompt);
         handleJobProgress(jobId);
       } catch (error) {
         alert(`⚠️ Error: ${error.message}`);

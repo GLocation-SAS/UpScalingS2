@@ -234,30 +234,33 @@ function updateJobProgress(jobId, progressUpdate) {
     }
 }
 
-async function processUpscale(jobId, file, model, mapReferenceUrl = null) {
-    let prompt = '';
-    switch (model) {
-        case 'upscaling':
-            prompt = `
-                    Positivo: Professional satellite orthophoto super-resolution, Sentinel-2 source. Upscaling from 10m to 1m GSD. Nadir view. Focus on coherent land cover textures and macro-geological features. Smooth rendering of continuous surfaces: agricultural patterns, forest canopies, water bodies, and defined urban blocks. Abstract generalization of materials. Photorealistic natural lighting, geographic consistency, high fidelity terrain. 
-                    Negativo: High-frequency noise, micro-details, individual vehicles, cars, people, street furniture, small bushes, sharp edges on small objects (<20m), visual artifacts, dithering, invented urban clutter, over-sharpened micro-textures, distorted geometry.
-                `;
-            break;
-        case 'building_footprint':
-            prompt = 'a satellite image highlighting building footprints in bright red, high contrast, clearly defined edges';
-            break;
-        case 'ways':
-            prompt = 'a satellite image with all roads and paths highlighted in bright yellow, high contrast, clean lines';
-            break;
-        case 'forest':
-            prompt = 'a satellite image emphasizing forested areas in vibrant green, high contrast, distinguishing between different types of vegetation';
-            break;
-        case 'trees':
-            prompt = 'a satellite image where individual trees or small clusters of trees are clearly visible and distinct';
-            break;
-        default:
-            console.warn(`[PROCESS] Modelo desconocido '${model}'. Usando prompt de 'upscaling' por defecto.`);
-            prompt = 'a satellite image with 4x resolution, high quality, high detail, sharp focus, 8k, UHD, professional';
+async function processUpscale(jobId, file, model, mapReferenceUrl = null, customPrompt = null) {
+    let prompt = customPrompt || '';
+
+    if (!prompt) {
+        switch (model) {
+            case 'upscaling':
+                prompt = `
+                        Positivo: Professional satellite orthophoto super-resolution, Sentinel-2 source. Upscaling from 10m to 1m GSD. Nadir view. Focus on coherent land cover textures and macro-geological features. Smooth rendering of continuous surfaces: agricultural patterns, forest canopies, water bodies, and defined urban blocks. Abstract generalization of materials. Photorealistic natural lighting, geographic consistency, high fidelity terrain. 
+                        Negativo: High-frequency noise, micro-details, individual vehicles, cars, people, street furniture, small bushes, sharp edges on small objects (<20m), visual artifacts, dithering, invented urban clutter, over-sharpened micro-textures, distorted geometry.
+                    `;
+                break;
+            case 'building_footprint':
+                prompt = 'a satellite image highlighting building footprints in bright red, high contrast, clearly defined edges';
+                break;
+            case 'ways':
+                prompt = 'a satellite image with all roads and paths highlighted in bright yellow, high contrast, clean lines';
+                break;
+            case 'forest':
+                prompt = 'a satellite image emphasizing forested areas in vibrant green, high contrast, distinguishing between different types of vegetation';
+                break;
+            case 'trees':
+                prompt = 'a satellite image where individual trees or small clusters of trees are clearly visible and distinct';
+                break;
+            default:
+                console.warn(`[PROCESS] Modelo desconocido '${model}'. Usando prompt de 'upscaling' por defecto.`);
+                prompt = 'a satellite image with 4x resolution, high quality, high detail, sharp focus, 8k, UHD, professional';
+        }
     }
 
     console.log(`[PROCESS] Job ${jobId} usando modelo: '${model}'`);
@@ -548,7 +551,7 @@ app.post('/api/upscale-from-url', async (req, res) => {
 
         res.json({ jobId });
 
-        processUpscale(jobId, file, model, satellitePreviewUrl);
+        processUpscale(jobId, file, model, satellitePreviewUrl, req.body.prompt);
 
     } catch (e) {
         console.error("[API] Error en /api/upscale-from-url:", e);
