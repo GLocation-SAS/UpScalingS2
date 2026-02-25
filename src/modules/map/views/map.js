@@ -370,11 +370,15 @@ if (mapElement) {
     setupGooglePlacesSearch();
 
     // --- Custom Prompt Toggle ---
-    const togglePromptBtn = document.getElementById("toggle-custom-prompt");
+    const modelSelect = document.getElementById("upscaling-model-select");
     const promptContainer = document.getElementById("custom-prompt-container");
-    if (togglePromptBtn && promptContainer) {
-      togglePromptBtn.addEventListener("click", () => {
-        promptContainer.classList.toggle("hidden");
+    if (modelSelect && promptContainer) {
+      modelSelect.addEventListener("change", (e) => {
+        if (e.target.value === "Custom") {
+          promptContainer.classList.remove("hidden");
+        } else {
+          promptContainer.classList.add("hidden");
+        }
       });
     }
 
