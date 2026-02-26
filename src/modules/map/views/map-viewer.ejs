@@ -65,37 +65,64 @@
         </div>
 
         <div class="sidebar-section">
-          <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Control de Capas</h4>
+          <h4 class="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-100">Controles de visualización y
+            opacidad</h4>
+
           <div
-            class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
-            <input type="radio" id="view-improved" name="layer-toggle" value="improved" checked class="accent-primary">
-            <label for="view-improved" class="cursor-pointer font-medium text-sm">Imagen Mejorada (IA)</label>
+            class="layer-control p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-transparent dark:border-slate-700 mb-3 shadow-sm">
+            <div class="flex items-center gap-2 mb-2">
+              <input type="checkbox" id="view-improved" name="layer-checkbox" value="improved" checked
+                class="accent-primary w-4 h-4 rounded cursor-pointer">
+              <label for="view-improved"
+                class="cursor-pointer font-medium text-sm text-slate-700 dark:text-slate-200 flex-1">Imagen Mejorada
+                (IA)</label>
+            </div>
+            <input type="range" id="opacity-improved" min="0" max="1" step="0.05" value="1"
+              class="slider w-full accent-primary cursor-pointer">
           </div>
+
           <div
-            class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
-            <input type="radio" id="view-original" name="layer-toggle" value="original" class="accent-primary">
-            <label for="view-original" class="cursor-pointer font-medium text-sm">Imagen Original (Sentinel-2)</label>
+            class="layer-control p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-transparent dark:border-slate-700 mb-3 shadow-sm">
+            <div class="flex items-center gap-2 mb-2">
+              <input type="checkbox" id="view-original" name="layer-checkbox" value="original"
+                class="accent-primary w-4 h-4 rounded cursor-pointer">
+              <label for="view-original"
+                class="cursor-pointer font-medium text-sm text-slate-700 dark:text-slate-200 flex-1">Imagen Original
+                (Sentinel-2)</label>
+            </div>
+            <input type="range" id="opacity-original" min="0" max="1" step="0.05" value="1"
+              class="slider w-full accent-primary cursor-pointer">
           </div>
+
           <% if (resultData.satellitePreviewUrl) { %>
             <div
-              class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
-              <input type="radio" id="view-satellite" name="layer-toggle" value="satellite" class="accent-primary">
-              <label for="view-satellite" class="cursor-pointer font-medium text-sm">Mapa Satelital (No Híbrido)</label>
+              class="layer-control p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-transparent dark:border-slate-700 mb-3 shadow-sm">
+              <div class="flex items-center gap-2 mb-2">
+                <input type="checkbox" id="view-satellite" name="layer-checkbox" value="satellite"
+                  class="accent-primary w-4 h-4 rounded cursor-pointer">
+                <label for="view-satellite"
+                  class="cursor-pointer font-medium text-sm text-slate-700 dark:text-slate-200 flex-1">Mapa Satelital
+                  (No Híbrido)</label>
+              </div>
+              <input type="range" id="opacity-satellite" min="0" max="1" step="0.05" value="1"
+                class="slider w-full accent-primary cursor-pointer">
             </div>
             <% } %>
+
               <% if (resultData.ndviJpegUrl) { %>
                 <div
-                  class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
-                  <input type="radio" id="view-ndvi" name="layer-toggle" value="ndvi" class="accent-primary">
-                  <label for="view-ndvi" class="cursor-pointer font-medium text-sm">Mapa NDVI</label>
+                  class="layer-control p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-transparent dark:border-slate-700 mb-3 shadow-sm">
+                  <div class="flex items-center gap-2 mb-2">
+                    <input type="checkbox" id="view-ndvi" name="layer-checkbox" value="ndvi"
+                      class="accent-primary w-4 h-4 rounded cursor-pointer">
+                    <label for="view-ndvi"
+                      class="cursor-pointer font-medium text-sm text-slate-700 dark:text-slate-200 flex-1">Mapa
+                      NDVI</label>
+                  </div>
+                  <input type="range" id="opacity-ndvi" min="0" max="1" step="0.05" value="1"
+                    class="slider w-full accent-primary cursor-pointer">
                 </div>
                 <% } %>
-        </div>
-
-        <div class="sidebar-section">
-          <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Opacidad de la capa superior</h4>
-          <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1"
-            class="slider w-full accent-primary">
         </div>
 
         <div class="sidebar-section">

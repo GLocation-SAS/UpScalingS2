@@ -99,43 +99,36 @@ document.addEventListener('DOMContentLoaded', () => {
     map.fitBounds(bounds, { padding: 40 });
   });
 
-  // Lógica para los controles de capa (sin cambios)
-  document.querySelectorAll('input[name="layer-toggle"]').forEach(radio => {
-    radio.addEventListener('change', (event) => {
-      const selectedValue = event.target.value;
-      map.setLayoutProperty('original-image-layer', 'visibility', selectedValue === 'original' ? 'visible' : 'none');
-      map.setLayoutProperty('improved-image-layer', 'visibility', selectedValue === 'improved' ? 'visible' : 'none');
+  // Lógica para los checkboxes de capa
+  document.querySelectorAll('input[name="layer-checkbox"]').forEach(checkbox => {
+    checkbox.addEventListener('change', (event) => {
+      const layerIdSuffix = event.target.value;
+      const layerId = layerIdSuffix === 'original' ? 'original-image-layer'
+        : layerIdSuffix === 'improved' ? 'improved-image-layer'
+          : layerIdSuffix === 'satellite' ? 'satellite-image-layer'
+            : layerIdSuffix === 'ndvi' ? 'ndvi-image-layer' : null;
 
-      // Controlar capa satelital no híbrida
-      const satelliteUrl = mapElement.dataset.satelliteUrl;
-      if (satelliteUrl && map.getLayer('satellite-image-layer')) {
-        map.setLayoutProperty('satellite-image-layer', 'visibility', selectedValue === 'satellite' ? 'visible' : 'none');
-      }
-
-      // Controlar capa NDVI
-      const ndviUrl = mapElement.dataset.ndviUrl;
-      if (ndviUrl && map.getLayer('ndvi-image-layer')) {
-        map.setLayoutProperty('ndvi-image-layer', 'visibility', selectedValue === 'ndvi' ? 'visible' : 'none');
+      if (layerId && map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, 'visibility', event.target.checked ? 'visible' : 'none');
       }
     });
   });
 
-  // Lógica para el slider de opacidad (sin cambios)
-  const opacitySlider = document.getElementById('opacity-slider');
-  opacitySlider.addEventListener('input', (event) => {
-    const opacity = parseFloat(event.target.value);
-    map.setPaintProperty('improved-image-layer', 'raster-opacity', opacity);
-    map.setPaintProperty('original-image-layer', 'raster-opacity', opacity);
+  // Lógica para los sliders de opacidad por capa
+  ['improved', 'original', 'satellite', 'ndvi'].forEach(layerIdSuffix => {
+    const slider = document.getElementById(`opacity-${layerIdSuffix}`);
+    if (slider) {
+      slider.addEventListener('input', (event) => {
+        const opacity = parseFloat(event.target.value);
+        const layerId = layerIdSuffix === 'original' ? 'original-image-layer'
+          : layerIdSuffix === 'improved' ? 'improved-image-layer'
+            : layerIdSuffix === 'satellite' ? 'satellite-image-layer'
+              : layerIdSuffix === 'ndvi' ? 'ndvi-image-layer' : null;
 
-    // Aplicar opacidad a la capa satelital no híbrida
-    const satelliteUrl = mapElement.dataset.satelliteUrl;
-    if (satelliteUrl && map.getLayer('satellite-image-layer')) {
-      map.setPaintProperty('satellite-image-layer', 'raster-opacity', opacity);
-    }
-
-    const ndviUrl = mapElement.dataset.ndviUrl;
-    if (ndviUrl && map.getLayer('ndvi-image-layer')) {
-      map.setPaintProperty('ndvi-image-layer', 'raster-opacity', opacity);
+        if (layerId && map.getLayer(layerId)) {
+          map.setPaintProperty(layerId, 'raster-opacity', opacity);
+        }
+      });
     }
   });
 
