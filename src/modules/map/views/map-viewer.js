@@ -133,10 +133,40 @@ document.addEventListener('DOMContentLoaded', () => {
       map.setPaintProperty('satellite-image-layer', 'raster-opacity', opacity);
     }
 
-    // Aplicar opacidad a la capa NDVI
     const ndviUrl = mapElement.dataset.ndviUrl;
     if (ndviUrl && map.getLayer('ndvi-image-layer')) {
       map.setPaintProperty('ndvi-image-layer', 'raster-opacity', opacity);
     }
   });
+
+  // Lógica para el menú de descargas
+  const downloadBtn = document.getElementById('download-menu-btn');
+  const downloadDropdown = document.getElementById('download-dropdown');
+  const downloadIcon = document.getElementById('download-menu-icon');
+
+  if (downloadBtn && downloadDropdown) {
+    downloadBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = downloadDropdown.classList.contains('hidden');
+
+      if (isHidden) {
+        downloadDropdown.classList.remove('hidden');
+        downloadDropdown.classList.add('flex');
+        if (downloadIcon) downloadIcon.textContent = 'expand_more';
+      } else {
+        downloadDropdown.classList.add('hidden');
+        downloadDropdown.classList.remove('flex');
+        if (downloadIcon) downloadIcon.textContent = 'expand_less';
+      }
+    });
+
+    // Cerrar al hacer click afuera
+    document.addEventListener('click', (e) => {
+      if (!downloadBtn.contains(e.target) && !downloadDropdown.contains(e.target)) {
+        downloadDropdown.classList.add('hidden');
+        downloadDropdown.classList.remove('flex');
+        if (downloadIcon) downloadIcon.textContent = 'expand_less';
+      }
+    });
+  }
 });

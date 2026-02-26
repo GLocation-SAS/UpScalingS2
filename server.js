@@ -415,8 +415,9 @@ async function processUpscale(jobId, file, model, mapReferenceUrl = null, custom
 
         let tilesImproved = 0;
         updateJobProgress(jobId, { message: `Mejorando grillas con IA...`, processed: 0 });
-        const upgradePromises = tileGsPaths.map(paths =>
-            callBusinessService(URLS.upscale, {
+        const upgradePromises = tileGsPaths.map(paths => {
+            console.log(`[IA UPGRADE] Enviando a IA -> Base: ${paths.gsPath} | Referencia: ${paths.referenceGsPath || 'NINGUNA'}`);
+            return callBusinessService(URLS.upscale, {
                 imagen_gs: paths.gsPath,
                 imagen_referencia_gs: paths.referenceGsPath,
                 prompt: prompt
@@ -424,8 +425,8 @@ async function processUpscale(jobId, file, model, mapReferenceUrl = null, custom
                 tilesImproved++;
                 updateJobProgress(jobId, { message: `Mejorando grilla ${tilesImproved}/${tiles.length}`, processed: tilesImproved });
                 return result;
-            })
-        );
+            });
+        });
         const upgradedResults = await Promise.all(upgradePromises);
 
         let tilesAssembled = 0;
@@ -466,7 +467,16 @@ async function processUpscale(jobId, file, model, mapReferenceUrl = null, custom
         await uploadToDocs(finalPngBuffer, finalPngDestPath);
         const improvedPngPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${finalPngDestPath}`;
 
-        console.log(`Proceso completado para ${jobId}.`);
+        console.log(`=========================================`);
+        console.log(`[RESULTS] Proceso completado para ${jobId}.`);
+        console.log(`[RESULTS] ⬆️ Enviada originalmente a IA (Original JPEG): ${originalPublicUrl}`);
+        console.log(`[RESULTS] 🌍 Imagen GPS cruda separada (Pure Sentinel): ${pureSentinelPublicUrl}`);
+        console.log(`[RESULTS] ✨ Imagen mejorada generada (PNG visor): ${improvedPngPublicUrl}`);
+        console.log(`[RESULTS] 🗺️ Imagen mejorada generada (GeoTIFF descarga): ${finalTifPublicUrl}`);
+        if (jobs[jobId].ndviJpegUrl) console.log(`[RESULTS] 🌱 Imagen NDVI disponible: ${jobs[jobId].ndviJpegUrl}`);
+        if (jobs[jobId].satellitePreviewUrl) console.log(`[RESULTS] 📡 Mapa Estándar disponible: ${jobs[jobId].satellitePreviewUrl}`);
+        console.log(`=========================================`);
+
         jobs[jobId].result = {
             improvedPngUrl: improvedPngPublicUrl,
             improvedTifUrl: finalTifPublicUrl,

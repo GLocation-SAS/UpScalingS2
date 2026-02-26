@@ -100,16 +100,33 @@
 
         <div class="sidebar-section">
           <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Descargar</h4>
-          <div class="download-buttons">
-            <a href="<%= resultData.pureSentinelJpegUrl || resultData.originalJpegUrl %>"
-              class="download-btn block p-3 text-center rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white hover:border-primary transition-all font-semibold text-sm"
-              download="original_<%= jobId.substring(0,8) %>.jpeg">Original (JPEG)</a>
-            <a href="<%= resultData.improvedPngUrl %>"
-              class="download-btn block p-3 text-center rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white hover:border-primary transition-all font-semibold text-sm"
-              download="mejorado_<%= jobId.substring(0,8) %>.png">Mejorado (PNG)</a>
-            <a href="<%= resultData.improvedTifUrl %>"
-              class="download-btn primary block p-3 text-center rounded-lg bg-primary text-white hover:bg-blue-700 transition-all font-semibold text-sm border-0"
-              download="mejorado_<%= jobId.substring(0,8) %>.tif">Mejorado (GeoTIFF)</a>
+          <div class="relative w-full">
+            <button id="download-menu-btn"
+              class="w-full flex items-center justify-between p-3 rounded-lg bg-primary text-white hover:bg-blue-700 transition-all font-semibold text-sm">
+              <span>Opciones de Descarga</span>
+              <span id="download-menu-icon" class="material-icons-round text-sm pointer-events-none">expand_less</span>
+            </button>
+            <div id="download-dropdown"
+              class="absolute bottom-full mb-1 left-0 w-full hidden flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-xl overflow-hidden z-50">
+              <a href="<%= resultData.improvedTifUrl %>" download="mejorado_<%= jobId.substring(0,8) %>.tif"
+                class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all cursor-pointer text-center">Mejorado
+                (GeoTIFF)</a>
+
+              <a href="<%= resultData.improvedPngUrl %>" download="mejorado_<%= jobId.substring(0,8) %>.png"
+                class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Mejorado
+                (PNG)</a>
+
+              <a href="<%= resultData.pureSentinelJpegUrl || resultData.originalJpegUrl %>"
+                download="original_<%= jobId.substring(0,8) %>.jpeg"
+                class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Original
+                Sentinel-2 (JPEG)</a>
+
+              <% if (resultData.ndviJpegUrl) { %>
+                <a href="<%= resultData.ndviJpegUrl %>" download="ndvi_<%= jobId.substring(0,8) %>.jpeg"
+                  class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Mapa
+                  NDVI (JPEG)</a>
+                <% } %>
+            </div>
           </div>
         </div>
 
