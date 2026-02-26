@@ -249,7 +249,7 @@ functions.http('getGeeImage', (req, res) => {
         return res.status(405).json({ error: 'Solo se permite método POST' });
       }
 
-      const { date, geometry } = req.body;
+      const { date, geometry, model } = req.body;
 
       if (!date) {
         return res.status(400).json({ error: 'Parámetro "date" requerido (formato ISO)' });
@@ -259,7 +259,8 @@ functions.http('getGeeImage', (req, res) => {
         return res.status(400).json({ error: 'Parámetro "geometry" requerido (GeoJSON)' });
       }
 
-      console.log(`📅 Procesando request - Fecha: ${date}`);
+      const selectedModel = model || 'upscaling'; // Modelo por defecto si no se envía
+      console.log(`📅 Procesando request - Fecha: ${date}, Modelo: ${selectedModel}`);
 
       // Inicializar GEE con token (caché o fresco según edad)
       await initGee();
@@ -348,71 +349,69 @@ functions.http('getGeeImage', (req, res) => {
           format: 'GEO_TIFF'
         });
 
-        console.log('📤 URLs de descarga obtenidas, enviando a cloud function de procesamiento...');
-
         const processingUrl = 'https://process-sentinel-image-960956212831.us-east1.run.app';
+        const dateRange = { start: startDate.format('YYYY-MM-dd').getInfo(), end: endDate.format('YYYY-MM-dd').getInfo() };
 
-        console.log('🚀 Iniciando procesamiento paralelo (RGB y NDVI)...');
-        const [processingResponseRGB, processingResponseNDVI] = await Promise.all([
-          fetch(processingUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tiffUrl: downloadUrlRGB,
-              date: date,
-              metadata: {
-                imagesFound: size,
-                type: 'rgb',
-                dateRange: { start: startDate.format('YYYY-MM-dd').getInfo(), end: endDate.format('YYYY-MM-dd').getInfo() }
-              }
-            })
-          }),
-          fetch(processingUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tiffUrl: downloadUrlNDVI,
-              date: date,
-              metadata: {
-                imagesFound: size,
-                type: 'ndvi',
-                dateRange: { start: startDate.format('YYYY-MM-dd').getInfo(), end: endDate.format('YYYY-MM-dd').getInfo() }
-              }
-            })
+        let jpegUrl = null, geotiffUrl = null, ndviJpegUrl = null, ndviGeotiffUrl = null;
+
+        // Siempre procesar RGB — es la imagen original Sentinel-2 y base para todos los modelos
+        console.log('🖥️ Procesando imagen RGB via emuclient...');
+        const responseRGB = await fetch(processingUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tiffUrl: downloadUrlRGB,
+            date: `${date}_rgb`,
+            metadata: { imagesFound: size, type: 'rgb', dateRange }
           })
-        ]);
-        if (!processingResponseRGB.ok) {
-          const errorText = await processingResponseRGB.text();
-          throw new Error(`Error en cloud function de procesamiento (RGB): ${processingResponseRGB.status} - ${errorText}`);
+        });
+        if (!responseRGB.ok) {
+          const errorText = await responseRGB.text();
+          throw new Error(`Error procesando RGB: ${responseRGB.status} - ${errorText}`);
         }
-        if (!processingResponseNDVI.ok) {
-          const errorText = await processingResponseNDVI.text();
-          throw new Error(`Error en cloud function de procesamiento (NDVI): ${processingResponseNDVI.status} - ${errorText}`);
-        }
+        const resultRGB = await responseRGB.json();
+        jpegUrl = resultRGB.jpegUrl;
+        geotiffUrl = resultRGB.geotiffUrl;
+        console.log(`✅ RGB procesado: ${jpegUrl}`);
 
-        const processingResultRGB = await processingResponseRGB.json();
-        const processingResultNDVI = await processingResponseNDVI.json();
-        console.log('✅ Procesamiento de ambas imágenes completado.');
+        // Siempre procesar NDVI — se guarda para mostrarlo en el visor de resultados
+        // (cuando el modelo es 'upscaling_ndvi', el backend lo usa también como referencia IA)
+        console.log('🌱 Procesando imagen NDVI via emuclient...');
+        const responseNDVI = await fetch(processingUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tiffUrl: downloadUrlNDVI,
+            date: `${date}_ndvi`,
+            metadata: { imagesFound: size, type: 'ndvi', dateRange }
+          })
+        });
+        if (!responseNDVI.ok) {
+          const errorText = await responseNDVI.text();
+          throw new Error(`Error procesando NDVI: ${responseNDVI.status} - ${errorText}`);
+        }
+        const resultNDVI = await responseNDVI.json();
+        ndviJpegUrl = resultNDVI.jpegUrl;
+        ndviGeotiffUrl = resultNDVI.geotiffUrl;
+        console.log(`✅ NDVI procesado: ${ndviJpegUrl}`);
+
+        console.log('✅ Procesamiento completado.');
 
         return {
-          url: tileUrl, // RGB Tile
-          jpegUrl: processingResultRGB.jpegUrl, // RGB JPEG from bucket
-          jpegFileName: processingResultRGB.jpegFileName,
-          geotiffUrl: processingResultRGB.geotiffUrl,
-          geotiffFileName: processingResultRGB.geotiffFileName,
+          url: tileUrl,
+          jpegUrl,
+          geotiffUrl,
 
-          ndviTileUrl: ndviTileUrl, // NDVI MapLibre Tile
-          ndviJpegUrl: processingResultNDVI.jpegUrl, // NDVI JPEG from bucket
-          ndviGeotiffUrl: processingResultNDVI.geotiffUrl,
+          ndviTileUrl,
+          ndviJpegUrl,
+          ndviGeotiffUrl,
 
           attribution: '© Google Earth Engine - Sentinel-2 MSI',
           metadata: {
-            date: date,
+            date,
+            model: selectedModel,
             imagesFound: size,
-            dateRange: {
-              start: startDate.format('YYYY-MM-dd').getInfo(),
-              end: endDate.format('YYYY-MM-dd').getInfo()
-            }
+            dateRange
           }
         };
       });

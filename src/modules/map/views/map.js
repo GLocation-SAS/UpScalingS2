@@ -783,7 +783,7 @@ if (mapElement) {
         const geePromise = fetchWithRetry("/map/gee-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: selectedDate, geometry })
+          body: JSON.stringify({ date: selectedDate, geometry, model: selectedModel })
         });
 
         const tiffPromise = fetchWithRetry("/map/tiff-compuesto", {

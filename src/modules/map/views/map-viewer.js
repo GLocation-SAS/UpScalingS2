@@ -79,6 +79,23 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Añadir el mapa NDVI (si existe)
+    const ndviUrl = mapElement.dataset.ndviUrl;
+    if (ndviUrl) {
+      map.addSource('ndvi-image-source', {
+        type: 'image',
+        url: ndviUrl,
+        coordinates: imageCoordinates
+      });
+      map.addLayer({
+        id: 'ndvi-image-layer',
+        type: 'raster',
+        source: 'ndvi-image-source',
+        paint: { 'raster-opacity': 1 },
+        layout: { 'visibility': 'none' }
+      });
+    }
+
     map.fitBounds(bounds, { padding: 40 });
   });
 
@@ -94,6 +111,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (satelliteUrl && map.getLayer('satellite-image-layer')) {
         map.setLayoutProperty('satellite-image-layer', 'visibility', selectedValue === 'satellite' ? 'visible' : 'none');
       }
+
+      // Controlar capa NDVI
+      const ndviUrl = mapElement.dataset.ndviUrl;
+      if (ndviUrl && map.getLayer('ndvi-image-layer')) {
+        map.setLayoutProperty('ndvi-image-layer', 'visibility', selectedValue === 'ndvi' ? 'visible' : 'none');
+      }
     });
   });
 
@@ -108,6 +131,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const satelliteUrl = mapElement.dataset.satelliteUrl;
     if (satelliteUrl && map.getLayer('satellite-image-layer')) {
       map.setPaintProperty('satellite-image-layer', 'raster-opacity', opacity);
+    }
+
+    // Aplicar opacidad a la capa NDVI
+    const ndviUrl = mapElement.dataset.ndviUrl;
+    if (ndviUrl && map.getLayer('ndvi-image-layer')) {
+      map.setPaintProperty('ndvi-image-layer', 'raster-opacity', opacity);
     }
   });
 });

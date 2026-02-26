@@ -14,12 +14,12 @@ functions.http('processSentinelImage', (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
-  
+
   // Manejar preflight requests
   if (req.method === 'OPTIONS') {
     return res.status(204).send('');
   }
-  
+
   (async () => {
     try {
       // Validar método HTTP
@@ -29,7 +29,7 @@ functions.http('processSentinelImage', (req, res) => {
 
       // Validar parámetros de entrada
       const { tiffUrl, date, metadata } = req.body;
-      
+
       if (!tiffUrl) {
         return res.status(400).json({ error: 'Parámetro "tiffUrl" requerido' });
       }
@@ -48,8 +48,10 @@ functions.http('processSentinelImage', (req, res) => {
       const tiffBuffer = Buffer.from(await tiffResponse.arrayBuffer());
       console.log(`TIFF descargado: ${(tiffBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
-      // Usar 'latest' como nombre para reemplazar con cada nueva coordenada
-      const uniqueId = 'latest';
+      // Usar tipo + timestamp para garantizar unicidad entre RGB y NDVI
+      const type = metadata?.type || 'rgb'; // 'rgb' o 'ndvi'
+      const timestamp = Date.now();
+      const uniqueId = `${type}_${timestamp}`;
       const tiffFileName = `sentinel/sentinel_${uniqueId}.tif`;
       const jpegFileName = `sentinel/sentinel_${uniqueId}.jpeg`;
 
@@ -57,7 +59,7 @@ functions.http('processSentinelImage', (req, res) => {
       const tiffFile = bucket.file(tiffFileName);
       await tiffFile.save(tiffBuffer, {
         contentType: 'image/tiff',
-        metadata: { 
+        metadata: {
           cacheControl: 'no-cache',
           customMetadata: {
             date: date,
@@ -81,7 +83,7 @@ functions.http('processSentinelImage', (req, res) => {
       const jpegFile = bucket.file(jpegFileName);
       await jpegFile.save(jpegBuffer, {
         contentType: 'image/jpeg',
-        metadata: { 
+        metadata: {
           cacheControl: 'no-cache',
           customMetadata: {
             date: date,

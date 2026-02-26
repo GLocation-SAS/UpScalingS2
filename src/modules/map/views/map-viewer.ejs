@@ -83,6 +83,13 @@
               <label for="view-satellite" class="cursor-pointer font-medium text-sm">Mapa Satelital (No Híbrido)</label>
             </div>
             <% } %>
+              <% if (resultData.ndviJpegUrl) { %>
+                <div
+                  class="layer-switcher flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700">
+                  <input type="radio" id="view-ndvi" name="layer-toggle" value="ndvi" class="accent-primary">
+                  <label for="view-ndvi" class="cursor-pointer font-medium text-sm">Mapa NDVI</label>
+                </div>
+                <% } %>
         </div>
 
         <div class="sidebar-section">
@@ -94,7 +101,7 @@
         <div class="sidebar-section">
           <h4 class="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">Descargar</h4>
           <div class="download-buttons">
-            <a href="<%= resultData.originalJpegUrl %>"
+            <a href="<%= resultData.pureSentinelJpegUrl || resultData.originalJpegUrl %>"
               class="download-btn block p-3 text-center rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white hover:border-primary transition-all font-semibold text-sm"
               download="original_<%= jobId.substring(0,8) %>.jpeg">Original (JPEG)</a>
             <a href="<%= resultData.improvedPngUrl %>"
@@ -121,9 +128,11 @@
       <div id="<%= mapConfig.containerId %>"
         class="map flex-1 h-[calc(100vh-140px)] rounded-2xl border border-slate-200 dark:border-white/10 shadow-xl overflow-hidden"
         data-tile-url="<%= mapConfig.tileUrl %>" data-logo="<%= mapConfig.maplibreLogo %>"
-        data-bounds='<%- JSON.stringify(resultData.bounds) %>' data-original-url="<%= resultData.originalJpegUrl %>"
+        data-bounds='<%- JSON.stringify(resultData.bounds) %>'
+        data-original-url="<%= resultData.pureSentinelJpegUrl || resultData.originalJpegUrl %>"
         data-improved-url="<%= resultData.improvedPngUrl %>"
-        data-satellite-url="<%= resultData.satellitePreviewUrl || '' %>">
+        data-satellite-url="<%= resultData.satellitePreviewUrl || '' %>"
+        data-ndvi-url="<%= resultData.ndviJpegUrl || '' %>">
       </div>
     </section>
   </main>

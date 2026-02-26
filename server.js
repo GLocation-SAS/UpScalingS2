@@ -253,23 +253,8 @@ async function processUpscale(jobId, file, model, mapReferenceUrl = null, custom
                 break;
             case 'upscaling_ndvi':
                 prompt = `
-                        Positive Prompt:
-
-Output requirement: Generate a super-resolved photorealistic RGB satellite orthophoto at 1m GSD derived from a 10m Sentinel-2 source image. The final output must be a natural-color nadir-view orthophoto (not an NDVI map, not false color).
-
-Use the accompanying NDVI vegetation index image strictly as structural guidance to enhance vegetation density, canopy texture continuity, and agricultural pattern coherence. The NDVI must inform vegetation vigor distribution but must not influence coloration.
-
-Focus on large-scale land cover consistency and macro-texture realism: agricultural parcels, forest masses, water bodies, terrain transitions, and defined urban blocks. Maintain geographic plausibility and terrain fidelity.
-
-Render smooth, continuous surfaces with realistic natural lighting and atmospheric consistency. Vegetation should appear denser and structurally coherent where NDVI values are higher, while low NDVI areas should reflect sparse or stressed vegetation in a physically plausible way.
-
-Negative Prompt:
-
-Do not generate NDVI-style coloration, heatmaps, or false-color imagery.
-Avoid hallucinated micro-details such as individual vehicles, people, street furniture, small isolated trees, or objects smaller than 20m.
-No artificial urban clutter, no invented roads, no distorted parcel geometry.
-Avoid over-sharpening, excessive contrast, high-frequency noise, dithering artifacts, or unrealistic micro-textures.
-Preserve large-scale spatial coherence and avoid synthetic patterns inconsistent with satellite imagery.
+                        Positivo: High-definition NDVI (Normalized Difference Vegetation Index) map super-resolution. The input image is an NDVI vegetation map. Upscale it from its original resolution to a sharp, high-quality, high-definition version. Maintain the exact color scale (ranging from white/brown for barren land to dark green for dense vegetation). Improve the clarity, sharpness, and boundaries of vegetation zones, agricultural parcels, tree canopies, and forested areas. Do NOT convert this to a natural-color RGB image; keep it as a scientific NDVI visualization but with enhanced resolution.
+                        Negativo: Natural color rendering, RGB photorealism, cars, buildings, distortion of vegetation zones, invented urban structures, color palette changes, loss of scientific map accuracy, high-frequency noise.
                     `;
                 break;
             case 'building_footprint':
@@ -323,13 +308,27 @@ Preserve large-scale spatial coherence and avoid synthetic patterns inconsistent
         }
 
         const TILE_SIZE = 1024;
-        const sharpImage = sharp(file.buffer);
+        // Usar imageBuffer (JPEG ya redimensionado a 1024x1024 por emuclient) si está disponible.
+        // Esto garantiza que la IA recibe una imagen de resolución adecuada, no el GeoTIFF crudo de ~170px.
+        const sourceBuffer = file.imageBuffer || file.buffer;
+        const sharpImage = sharp(sourceBuffer);
         const jpegBuffer = await sharpImage.jpeg({ quality: 90 }).toBuffer();
 
         const originalJpegPath = `${BUCKET_BASE_PATH}/original_jpeg/${jobId}.jpeg`;
         await uploadToDocs(jpegBuffer, originalJpegPath);
         const originalPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${originalJpegPath}`;
 
+        let pureSentinelPublicUrl = originalPublicUrl;
+        if (file.imageBuffer && file.buffer) {
+            try {
+                const pureSentinelBuffer = await sharp(file.buffer).resize(1024, 1024, { fit: 'fill' }).jpeg({ quality: 80 }).toBuffer();
+                const pureSentinelPath = `${BUCKET_BASE_PATH}/pure_sentinel_jpeg/${jobId}.jpeg`;
+                await uploadToDocs(pureSentinelBuffer, pureSentinelPath);
+                pureSentinelPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${pureSentinelPath}`;
+            } catch (err) {
+                console.warn("[PROCESS] Advertencia: No se pudo generar pure_sentinel_jpeg, usando original_jpeg como fallback", err.message);
+            }
+        }
         const jpegImage = sharp(jpegBuffer);
         const metadata = await jpegImage.metadata();
         const width = metadata.width;
@@ -472,9 +471,11 @@ Preserve large-scale spatial coherence and avoid synthetic patterns inconsistent
             improvedPngUrl: improvedPngPublicUrl,
             improvedTifUrl: finalTifPublicUrl,
             originalJpegUrl: originalPublicUrl,
+            pureSentinelJpegUrl: pureSentinelPublicUrl, // <- NUEVO: El Sentinel-2 real
             bounds: realBounds,
             satellitePreviewUrl: jobs[jobId].satellitePreviewUrl || null,
-            satelliteTiffUrl: jobs[jobId].satelliteTiffUrl || null
+            satelliteTiffUrl: jobs[jobId].satelliteTiffUrl || null,
+            ndviJpegUrl: jobs[jobId].ndviJpegUrl || null
         };
         updateJobProgress(jobId, {
             status: 'complete',
@@ -555,7 +556,7 @@ app.post('/api/upscale-from-gs', async (req, res, next) => {
 
 app.post('/api/upscale-from-url', async (req, res) => {
     try {
-        const { geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, ndviJpegUrl } = req.body;
+        const { imageUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, ndviJpegUrl } = req.body;
 
         if (!geotiffUrl) {
             throw new Error('La respuesta de GEE no incluyó la URL del archivo GeoTIFF (geotiffUrl). No se puede procesar.');
@@ -565,24 +566,45 @@ app.post('/api/upscale-from-url', async (req, res) => {
             throw new Error('Falta el campo "model" en el cuerpo de la petición.');
         }
 
-        console.log(`[API] Descargando GeoTIFF desde URL de GEE: ${geotiffUrl}`);
-        const imageResponse = await fetch(geotiffUrl);
+        // Si el usuario seleccionó mejorar el NDVI, la imagen base ES el NDVI.
+        // Si no, es la imagen RGB (preferiblemente el JPEG 1024x1024).
+        let inputUrl = model === 'upscaling_ndvi' && ndviJpegUrl ? ndviJpegUrl : (imageUrl || geotiffUrl);
+
+        console.log(`[API] Descargando imagen de entrada desde: ${inputUrl}`);
+        const imageResponse = await fetch(inputUrl);
         if (!imageResponse.ok) {
-            throw new Error(`No se pudo descargar el GeoTIFF desde ${geotiffUrl}`);
+            throw new Error(`No se pudo descargar la imagen de entrada desde ${inputUrl}`);
         }
         const imageBuffer = await imageResponse.buffer();
 
-        const file = { buffer: imageBuffer, filename: `gee_image_${Date.now()}.tif` };
+        // El GeoTIFF siempre se usa SOLO para extraer las coordenadas geoespaciales (bounds)
+        let geotiffBuffer = imageBuffer;
+        if (inputUrl !== geotiffUrl) {
+            console.log(`[API] Descargando GeoTIFF (solo para extraer coordenadas): ${geotiffUrl}`);
+            const geotiffResponse = await fetch(geotiffUrl);
+            if (geotiffResponse.ok) {
+                geotiffBuffer = await geotiffResponse.buffer();
+            } else {
+                console.warn('[API] No se pudo descargar el GeoTIFF para coordenadas, se usarán por defecto.');
+            }
+        }
+
+        const file = { buffer: geotiffBuffer, filename: `gee_image_${Date.now()}.tif`, imageBuffer };
         const jobId = randomUUID();
-        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando desde GEE...', processed: 0, total: 0 }, satellitePreviewUrl: satellitePreviewUrl || null, satelliteTiffUrl: satelliteTiffUrl || null };
+        jobs[jobId] = { status: 'processing', progress: { message: 'Iniciando desde GEE...', processed: 0, total: 0 }, satellitePreviewUrl: satellitePreviewUrl || null, satelliteTiffUrl: satelliteTiffUrl || null, ndviJpegUrl: ndviJpegUrl || null };
 
         res.json({ jobId });
 
         let referenceImage = satellitePreviewUrl;
         if (model === 'upscaling_ndvi') {
-            referenceImage = ndviJpegUrl || null;
-            if (!referenceImage) console.warn('[API] upscaling_ndvi seleccionado pero no se recibió ndviJpegUrl');
+            // El propio NDVI ya es la imagen base, no enviamos imagen de referencia para no confundir a la IA
+            referenceImage = null;
         }
+
+        console.log(`[API] ✅ Modelo: ${model}`);
+        console.log(`[API] 📷 Imagen BASE (geotiffUrl): ${geotiffUrl}`);
+        console.log(`[API] 🌱 Imagen REFERENCIA (referenceImage): ${referenceImage}`);
+        console.log(`[API] 🗺️ ndviJpegUrl recibido: ${ndviJpegUrl}`);
 
         processUpscale(jobId, file, model, referenceImage, req.body.prompt);
 
