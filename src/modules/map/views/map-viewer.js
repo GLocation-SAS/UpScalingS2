@@ -65,10 +65,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Añadir la imagen satelital no híbrida (si existe)
     const satelliteUrl = mapElement.dataset.satelliteUrl;
     if (satelliteUrl) {
+      // Usar bounds propios del satelital si están disponibles (evita desalineación con bounds de GEE)
+      let satelliteCoordinates = imageCoordinates;
+      const satelliteBboxStr = mapElement.dataset.satelliteBounds;
+      if (satelliteBboxStr) {
+        try {
+          const sBbox = JSON.parse(satelliteBboxStr); // [minLon, minLat, maxLon, maxLat]
+          if (Array.isArray(sBbox) && sBbox.length === 4) {
+            satelliteCoordinates = [
+              [sBbox[0], sBbox[3]], // Top-Left
+              [sBbox[2], sBbox[3]], // Top-Right
+              [sBbox[2], sBbox[1]], // Bottom-Right
+              [sBbox[0], sBbox[1]]  // Bottom-Left
+            ];
+          }
+        } catch (e) {
+          console.warn('No se pudieron parsear los bounds del satelital:', e);
+        }
+      }
       map.addSource('satellite-image-source', {
         type: 'image',
         url: satelliteUrl,
-        coordinates: imageCoordinates
+        coordinates: satelliteCoordinates
       });
       map.addLayer({
         id: 'satellite-image-layer',

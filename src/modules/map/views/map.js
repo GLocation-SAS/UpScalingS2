@@ -54,13 +54,18 @@ function handleJobProgress(jobId) {
   };
 }
 
-async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt = null, ndviJpegUrl = null) {
+async function startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt = null, ndviJpegUrl = null, satelliteBbox = null) {
   if (!jpegUrl) return null;
   showProgress("Iniciando mejora con IA...");
+
+  // Enviar contexto de escala al backend para que el prompt sea consciente del nivel de zoom
+  const captureZoom = window.currentRectangleZoom ? Math.floor(window.currentRectangleZoom) : null;
+  const captureDimensions = window.currentRectangleDimensions || null;
+
   const response = await fetch("/api/upscale-from-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt, ndviJpegUrl })
+    body: JSON.stringify({ imageUrl: jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, model, prompt, ndviJpegUrl, satelliteBbox, captureZoom, captureDimensions })
   });
 
   if (!response.ok) {
@@ -845,6 +850,7 @@ if (mapElement) {
         // Datos del mapa satelital no híbrido
         const satellitePreviewUrl = tiffData?.preview_url || null;
         const satelliteTiffUrl = tiffData?.tiff_url || null;
+        const satelliteBbox = tiffData?.bbox || null;
 
         if (tiffError) {
           console.warn("Advertencia satelital:", tiffError);
@@ -859,7 +865,7 @@ if (mapElement) {
           ? customPromptInput.value.trim()
           : null;
 
-        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, selectedModel, customPrompt, ndviJpegUrl);
+        const { jobId } = await startUpscaleProcessFromUrl(jpegUrl, geotiffUrl, geometry, satellitePreviewUrl, satelliteTiffUrl, selectedModel, customPrompt, ndviJpegUrl, satelliteBbox);
         handleJobProgress(jobId);
       } catch (error) {
         alert(`⚠️ Error: ${error.message}`);

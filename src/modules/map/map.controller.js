@@ -46,11 +46,12 @@ const getGeeImageUrl = async (req, res) => {
 const getTiffCompuesto = async (req, res) => {
   console.log('\n[Controller] Received /tiff-compuesto');
   console.log('[Controller] Zoom:', req.body.zoom);
+  console.log('[Controller] ZoomBoost:', req.body.zoomBoost);
   console.log('[Controller] Layer:', req.body.layer);
   console.log('[Controller] Geometry:', JSON.stringify(req.body.geometry, null, 2));
 
   try {
-    const { geometry, zoom, layer } = req.body;
+    const { geometry, zoom, layer, zoomBoost } = req.body;
 
     if (!geometry || typeof zoom !== 'number') {
       console.log('[Controller] Missing parameters');
@@ -60,10 +61,11 @@ const getTiffCompuesto = async (req, res) => {
     }
 
     console.log('[Controller] Calling fetchTiffCompuesto...');
-    const result = await fetchTiffCompuesto(geometry, zoom, layer);
+    const result = await fetchTiffCompuesto(geometry, zoom, layer, zoomBoost);
     console.log('[Controller] Response received from Cloud Function');
     console.log('[Controller] Preview URL:', result.preview_url);
     console.log('[Controller] TIFF URL:', result.tiff_url);
+    console.log('[Controller] Zoom used:', result.zoom_used);
 
     res.json(result);
     console.log('[Controller] Response sent\n');

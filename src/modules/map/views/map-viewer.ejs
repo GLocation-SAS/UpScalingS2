@@ -176,6 +176,7 @@
         data-original-url="<%= resultData.pureSentinelJpegUrl || resultData.originalJpegUrl %>"
         data-improved-url="<%= resultData.improvedPngUrl %>"
         data-satellite-url="<%= resultData.satellitePreviewUrl || '' %>"
+        data-satellite-bounds='<%- resultData.satelliteBbox ? JSON.stringify(resultData.satelliteBbox) : "" %>'
         data-ndvi-url="<%= resultData.ndviJpegUrl || '' %>">
       </div>
     </section>

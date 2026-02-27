@@ -234,8 +234,17 @@ body {
   background: #5a6268;
 }
 
+.layer-control {
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 .slider {
   width: 100%;
+  -webkit-user-drag: none;
+  user-select: none;
+  -moz-user-select: none;
+  touch-action: none;
 }
 
 .download-buttons {

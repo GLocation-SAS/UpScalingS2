@@ -78,15 +78,17 @@ const fetchGeeImage = async (date, geometry) => {
   }
 };
 
-const fetchTiffCompuesto = async (geometry, zoom, layer) => {
+const fetchTiffCompuesto = async (geometry, zoom, layer, zoomBoost) => {
   console.log('\n[Service] Starting fetchTiffCompuesto');
   console.log('[Service] Target URL:', TIFF_FUNCTION_URL);
   console.log('[Service] Geometry type:', geometry.type || 'FeatureCollection');
   console.log('[Service] Zoom:', zoom);
+  console.log('[Service] ZoomBoost:', zoomBoost);
   console.log('[Service] Layer:', layer);
 
   try {
     const payload = { geometry, zoom, layer };
+    if (typeof zoomBoost === 'number') payload.zoomBoost = zoomBoost;
     console.log('[Service] Payload:', JSON.stringify(payload, null, 2));
 
     console.log('[Service] Sending request to Cloud Function...');
