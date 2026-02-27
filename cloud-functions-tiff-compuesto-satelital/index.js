@@ -11,9 +11,11 @@ const storage = new Storage();
 const bucket = storage.bucket('uss2-images');
 
 const TILE_SIZE = 1024;
-const MAX_TILES = 400;
+const MAX_TILES = 2500;
 const EARTH_RADIUS = 6378137;
 const DEFAULT_LAYER = 'satellite';
+const DEFAULT_ZOOM_BOOST = 2;
+const MAX_ZOOM = 20;
 
 const TILE_BASE_URLS = {
   satellite: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}&scale=4',
@@ -44,6 +46,12 @@ const lonLatToMercator = (lon, lat) => {
   const x = EARTH_RADIUS * toRadians(lon);
   const y = EARTH_RADIUS * Math.log(Math.tan(Math.PI / 4 + toRadians(lat) / 2));
   return { x, y };
+};
+
+const mercatorToLonLat = (mx, my) => {
+  const lon = (mx / EARTH_RADIUS) * (180 / Math.PI);
+  const lat = (2 * Math.atan(Math.exp(my / EARTH_RADIUS)) - Math.PI / 2) * (180 / Math.PI);
+  return { lon, lat };
 };
 
 const computeTileRange = (bbox, zoom) => {
@@ -148,14 +156,15 @@ const buildMosaic = async (tileRange, tiles, zoom) => {
     }
   }).composite(composites);
 
-  const jpegBuffer = await base.clone().jpeg({ quality: 90 }).toBuffer();
+  // Usar PNG sin pérdida como formato intermedio (evita doble compresión JPEG)
+  const pngBuffer = await base.clone().png({ compressionLevel: 1 }).toBuffer();
   const { data, info } = await base.clone().raw().toBuffer({ resolveWithObject: true });
 
   if (!data || !info) {
     throw new Error('No se pudo generar el mosaico en memoria');
   }
 
-  return { jpegBuffer, raw: data, width: info.width, height: info.height, channels: info.channels };
+  return { pngBuffer, raw: data, width: info.width, height: info.height, channels: info.channels };
 };
 
 const cropMosaicToUserBounds = async (mosaicData, tileMercatorBounds, userBbox, zoom) => {
@@ -189,32 +198,50 @@ const cropMosaicToUserBounds = async (mosaicData, tileMercatorBounds, userBbox, 
   const validWidth = Math.max(1, Math.min(cropWidth, mosaicData.width - validLeft));
   const validHeight = Math.max(1, Math.min(cropHeight, mosaicData.height - validTop));
 
+  // Calcular los bounds Mercator EXACTOS del recorte real (basados en píxeles, no en el bbox del usuario)
+  const actualMercatorBounds = {
+    minX: tileMercatorBounds.minX + validLeft / pixelsPerMercatorX,
+    maxY: tileMercatorBounds.maxY - validTop / pixelsPerMercatorY,
+    maxX: tileMercatorBounds.minX + (validLeft + validWidth) / pixelsPerMercatorX,
+    minY: tileMercatorBounds.maxY - (validTop + validHeight) / pixelsPerMercatorY
+  };
+
+  // Convertir a lon/lat para uso en el visor
+  const actualBottomLeft = mercatorToLonLat(actualMercatorBounds.minX, actualMercatorBounds.minY);
+  const actualTopRight = mercatorToLonLat(actualMercatorBounds.maxX, actualMercatorBounds.maxY);
+  const actualLonLatBbox = [actualBottomLeft.lon, actualBottomLeft.lat, actualTopRight.lon, actualTopRight.lat];
+
   console.log('Cropping mosaic:', {
     original: { width: mosaicData.width, height: mosaicData.height },
     crop: { left: validLeft, top: validTop, width: validWidth, height: validHeight },
     userBbox,
+    actualLonLatBbox,
     tileBounds: tileMercatorBounds,
-    userBounds: userMercatorBounds
+    userBounds: userMercatorBounds,
+    actualBounds: actualMercatorBounds
   });
 
-  // Recortar el mosaico
-  const croppedJpeg = await sharp(mosaicData.jpegBuffer)
+  // Recortar el mosaico desde el PNG sin pérdida y aplicar sharpening
+  const croppedPng = await sharp(mosaicData.pngBuffer)
     .extract({ left: validLeft, top: validTop, width: validWidth, height: validHeight })
-    .jpeg({ quality: 90 })
+    .sharpen({ sigma: 0.8, m1: 0.8, m2: 0.4 })
+    .png({ compressionLevel: 6, adaptiveFiltering: true })
     .toBuffer();
 
-  const croppedRaw = await sharp(mosaicData.jpegBuffer)
+  const croppedRaw = await sharp(mosaicData.pngBuffer)
     .extract({ left: validLeft, top: validTop, width: validWidth, height: validHeight })
+    .sharpen({ sigma: 0.8, m1: 0.8, m2: 0.4 })
     .raw()
     .toBuffer();
 
   return {
-    jpegBuffer: croppedJpeg,
+    pngBuffer: croppedPng,
     raw: croppedRaw,
     width: validWidth,
     height: validHeight,
     channels: mosaicData.channels,
-    mercatorBounds: userMercatorBounds
+    mercatorBounds: actualMercatorBounds,
+    lonLatBbox: actualLonLatBbox
   };
 };
 
@@ -304,7 +331,7 @@ functions.http('tiff-compuesto-satelital', (req, res) => {
         return res.status(405).json({ error: 'Solo se permite metodo POST' });
       }
 
-      const { geometry, zoom, layer } = req.body || {};
+      const { geometry, zoom, layer, zoomBoost } = req.body || {};
 
       if (!geometry || geometry.type !== 'FeatureCollection') {
         return res.status(400).json({ error: 'Parametro "geometry" invalido (FeatureCollection)' });
@@ -314,25 +341,32 @@ functions.http('tiff-compuesto-satelital', (req, res) => {
         return res.status(400).json({ error: 'Parametro "zoom" invalido' });
       }
 
+      // Aplicar boost de zoom para mayor resolución
+      const boost = typeof zoomBoost === 'number' ? zoomBoost : DEFAULT_ZOOM_BOOST;
+      const effectiveZoom = Math.min(zoom + boost, MAX_ZOOM);
+      console.log(`Zoom solicitado: ${zoom}, boost: ${boost}, zoom efectivo: ${effectiveZoom}`);
+
       const normalizedLayer = layer || DEFAULT_LAYER;
 
       const bbox = turf.bbox(geometry);
-      const tileRange = computeTileRange(bbox, zoom);
+      const tileRange = computeTileRange(bbox, effectiveZoom);
       const tilesX = tileRange.maxX - tileRange.minX + 1;
       const tilesY = tileRange.maxY - tileRange.minY + 1;
       const totalTiles = tilesX * tilesY;
 
+      console.log(`Tiles requeridos: ${totalTiles} (${tilesX}x${tilesY}) a zoom ${effectiveZoom}`);
+
       if (totalTiles > MAX_TILES) {
         return res.status(400).json({
           error: 'La seleccion requiere demasiados tiles',
-          details: { totalTiles, maxTiles: MAX_TILES }
+          details: { totalTiles, maxTiles: MAX_TILES, zoom: effectiveZoom }
         });
       }
 
       const tileJobs = [];
       for (let y = tileRange.minY; y <= tileRange.maxY; y += 1) {
         for (let x = tileRange.minX; x <= tileRange.maxX; x += 1) {
-          tileJobs.push({ x, y, z: zoom });
+          tileJobs.push({ x, y, z: effectiveZoom });
         }
       }
 
@@ -344,7 +378,7 @@ functions.http('tiff-compuesto-satelital', (req, res) => {
       }
 
       // Always process with satellite tiles under the hood.
-      const tiles = await fetchTilesWithLimit(tileJobs, DEFAULT_LAYER, 8);
+      const tiles = await fetchTilesWithLimit(tileJobs, DEFAULT_LAYER, 16);
       const downloadedTiles = tiles.filter(Boolean).length;
 
       if (downloadedTiles === 0) {
@@ -352,13 +386,13 @@ functions.http('tiff-compuesto-satelital', (req, res) => {
       }
 
       console.log(`Tiles descargados: ${downloadedTiles}/${tiles.length}`);
-      const mosaic = await buildMosaic(tileRange, tiles, zoom);
+      const mosaic = await buildMosaic(tileRange, tiles, effectiveZoom);
 
       // Obtener bounds de los tiles completos
-      const tileMercatorBounds = computeMercatorBoundsFromTiles(tileRange, zoom);
+      const tileMercatorBounds = computeMercatorBoundsFromTiles(tileRange, effectiveZoom);
       
       // Recortar el mosaico al bbox exacto del usuario
-      const croppedMosaic = await cropMosaicToUserBounds(mosaic, tileMercatorBounds, bbox, zoom);
+      const croppedMosaic = await cropMosaicToUserBounds(mosaic, tileMercatorBounds, bbox, effectiveZoom);
       
       // Generar GeoTIFF con los bounds exactos del usuario
       const tiffBuffer = await buildGeoTiff(
@@ -371,16 +405,16 @@ functions.http('tiff-compuesto-satelital', (req, res) => {
 
       tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tiff-compuesto-'));
       const timestamp = Date.now();
-      const jpegName = `mosaic/satellite_${timestamp}.jpeg`;
+      const pngName = `mosaic/satellite_${timestamp}.png`;
       const tiffName = `mosaic/satellite_${timestamp}.tif`;
 
-      const jpegPath = path.join(tempDir, 'mosaic.jpeg');
+      const pngPath = path.join(tempDir, 'mosaic.png');
       const tiffPath = path.join(tempDir, 'mosaic.tif');
 
-      await fs.writeFile(jpegPath, croppedMosaic.jpegBuffer);
+      await fs.writeFile(pngPath, croppedMosaic.pngBuffer);
       await fs.writeFile(tiffPath, tiffBuffer);
 
-      const previewUrl = await uploadToBucket(jpegPath, jpegName, 'image/jpeg', {
+      const previewUrl = await uploadToBucket(pngPath, pngName, 'image/png', {
         layer: normalizedLayer,
         zoom: String(zoom)
       });
@@ -389,13 +423,17 @@ functions.http('tiff-compuesto-satelital', (req, res) => {
         zoom: String(zoom)
       });
 
-      const resolution = calculateResolution(bbox, zoom);
+      const resolution = calculateResolution(bbox, effectiveZoom);
 
       res.status(200).json({
         status: 'ok',
-        zoom_used: zoom,
+        zoom_requested: zoom,
+        zoom_used: effectiveZoom,
+        zoom_boost: boost,
         resolution_m_per_pixel: resolution,
-        bbox,
+        image_dimensions: { width: croppedMosaic.width, height: croppedMosaic.height },
+        bbox: croppedMosaic.lonLatBbox,
+        bbox_original: bbox,
         preview_url: previewUrl,
         tiff_url: tiffUrl
       });
