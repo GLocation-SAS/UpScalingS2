@@ -40,9 +40,21 @@ function handleJobProgress(jobId) {
     } else if (data.status === "complete") {
       updateProgress(data);
       eventSource.close();
+
+      // Mostrar log de tokens y área antes de redirigir
+      const logDiv = document.getElementById("progress-log");
+      if (logDiv && (data.result?.tokenUsage || data.result?.processedArea)) {
+        const t = data.result.tokenUsage || {};
+        const area = data.result.processedArea || 'N/A';
+        logDiv.innerHTML = `🤖 <strong>Vertex AI (Gemini)</strong><br>` +
+          `💰 Tokens — Input: ${t.input ?? '?'} | Output: ${t.output ?? '?'} | Total: <strong>${t.total ?? '?'}</strong><br>` +
+          `📐 Área procesada: <strong>${area} km²</strong>`;
+        logDiv.style.display = "block";
+      }
+
       setTimeout(() => {
         window.location.href = `/map/result/${jobId}`;
-      }, 500);
+      }, 3000);
     } else {
       updateProgress(data);
     }
@@ -368,6 +380,18 @@ if (mapElement) {
   `;
   mapContainer.appendChild(areaWarning);
 
+  // --- Area info overlay ---
+  const areaInfo = document.createElement("div");
+  areaInfo.id = "area-info";
+  areaInfo.style.cssText = `
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(31, 97, 140, 0.92); color: white; padding: 10px 18px;
+    border-radius: 8px; display: none; z-index: 1001; font-size: 13px;
+    font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    pointer-events: none; text-align: center; white-space: nowrap;
+  `;
+  mapContainer.appendChild(areaInfo);
+
   // --- Inicializar capas de dibujo cuando el mapa cargue ---
   map.on("load", () => {
 
@@ -512,6 +536,19 @@ if (mapElement) {
     areaWarning.style.display = "none";
   }
 
+  // Mostrar info de área del rectángulo seleccionado
+  function showAreaInfo(dims) {
+    const areaKm2 = (dims.area / 1e6).toFixed(3);
+    const widthM = Math.round(dims.width);
+    const heightM = Math.round(dims.height);
+    areaInfo.innerHTML = `📐 ${widthM}m × ${heightM}m &nbsp;|&nbsp; Área: <strong>${areaKm2} km²</strong>`;
+    areaInfo.style.display = "block";
+  }
+
+  function hideAreaInfo() {
+    areaInfo.style.display = "none";
+  }
+
   function makeRectangleGeoJSON(lngLat1, lngLat2) {
     const minLng = Math.min(lngLat1.lng, lngLat2.lng);
     const maxLng = Math.max(lngLat1.lng, lngLat2.lng);
@@ -544,6 +581,9 @@ if (mapElement) {
 
     // Desactivar drag del mapa mientras dibujamos
     map.dragPan.disable();
+
+    // Ocultar info de área previa al redibujar
+    hideAreaInfo();
 
     console.log("✓ Drawing mode ON");
   }
@@ -636,6 +676,9 @@ if (mapElement) {
     window.currentRectangleZoom = currentZoom;
     window.currentRectangleDimensions = validation.dimensions;
     console.log("✓ Rectangle captured:", geoJSON, "at zoom:", currentZoom, "dimensions:", validation.dimensions);
+
+    // Mostrar info del área seleccionada
+    showAreaInfo(validation.dimensions);
 
     // Ocultar advertencia
     hideAreaWarning();

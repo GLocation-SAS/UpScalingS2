@@ -15,6 +15,9 @@ const storage = new Storage();
 const app = express();
 const PORT = process.env.PORT || 8080;
 const API_KEY = process.env.API_KEY;
+const GEMINI_INPUT_PRICE_PER_M = parseFloat(process.env.GEMINI_INPUT_PRICE_PER_M || '0.10');
+const GEMINI_OUTPUT_TEXT_PRICE_PER_M = parseFloat(process.env.GEMINI_OUTPUT_TEXT_PRICE_PER_M || '0.40');
+const GEMINI_OUTPUT_IMAGE_PRICE_PER_M = parseFloat(process.env.GEMINI_OUTPUT_IMAGE_PRICE_PER_M || '30.00');
 
 const URLS = {
     token: 'https://gentoken-960956212831.us-central1.run.app',
@@ -608,6 +611,7 @@ Any reinterpretation of land cover beyond what is spectrally represented in the 
         const tileGsPaths = await Promise.all(originalUploadPromises);
 
         let tilesImproved = 0;
+        const totalTokens = { input: 0, output: 0, total: 0 };
         updateJobProgress(jobId, { message: `Mejorando grillas con IA...`, processed: 0 });
         const upgradePromises = tileGsPaths.map((paths, idx) => {
             const hasRef = !!paths.referenceGsPath;
@@ -620,12 +624,28 @@ Any reinterpretation of land cover beyond what is spectrally represented in the 
                 imagen_referencia_gs: paths.referenceGsPath,
                 prompt: prompt
             }).then(result => {
+                if (result.tokens) {
+                    totalTokens.input += result.tokens.input || 0;
+                    totalTokens.output += result.tokens.output || 0;
+                    totalTokens.total += result.tokens.total || 0;
+                }
                 tilesImproved++;
                 updateJobProgress(jobId, { message: `Mejorando grilla ${tilesImproved}/${tiles.length}`, processed: tilesImproved });
                 return result;
             });
         });
         const upgradedResults = await Promise.all(upgradePromises);
+
+        // Log de tokens, costo y área procesada
+        const areaDims = scaleContext?.dimensions;
+        const areaKm2 = areaDims ? (areaDims.area / 1e6).toFixed(3) : 'N/A';
+        const inputCost = (totalTokens.input / 1_000_000) * GEMINI_INPUT_PRICE_PER_M;
+        const outputCost = (totalTokens.output / 1_000_000) * GEMINI_OUTPUT_IMAGE_PRICE_PER_M;
+        const textCost = (totalTokens.output / 1_000_000) * GEMINI_OUTPUT_TEXT_PRICE_PER_M;
+        const totalCost = inputCost + outputCost;
+        console.log(`[RESULTS] 💰 Tokens Vertex AI — Input: ${totalTokens.input} | Output: ${totalTokens.output} | Total: ${totalTokens.total}`);
+        console.log(`[RESULTS] 💵 Costo estimado — Input: $${inputCost.toFixed(6)} | Output imagen: $${outputCost.toFixed(6)} | Output texto: $${textCost.toFixed(6)} | Total: $${totalCost.toFixed(6)} USD`);
+        console.log(`[RESULTS] 📐 Área procesada: ${areaKm2} km²`);
 
         let tilesAssembled = 0;
         updateJobProgress(jobId, { message: `Analizando y guardando resultados...`, processed: 0 });
@@ -684,7 +704,9 @@ Any reinterpretation of land cover beyond what is spectrally represented in the 
             satellitePreviewUrl: jobs[jobId].satellitePreviewUrl || null,
             satelliteTiffUrl: jobs[jobId].satelliteTiffUrl || null,
             satelliteBbox: jobs[jobId].satelliteBbox || null,
-            ndviJpegUrl: jobs[jobId].ndviJpegUrl || null
+            ndviJpegUrl: jobs[jobId].ndviJpegUrl || null,
+            tokenUsage: totalTokens,
+            processedArea: areaKm2
         };
         updateJobProgress(jobId, {
             status: 'complete',
@@ -700,6 +722,23 @@ Any reinterpretation of land cover beyond what is spectrally represented in the 
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'src', 'views', 'index.html'));
+});
+
+// Proxy de descarga — fuerza descarga de archivos GCS sin salir de la app
+app.get('/api/download', async (req, res) => {
+    const { url, filename } = req.query;
+    if (!url || !url.startsWith('https://storage.googleapis.com/')) {
+        return res.status(400).send('URL inválida');
+    }
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return res.status(502).send('No se pudo obtener el archivo');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename || 'archivo'}"`);
+        res.setHeader('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
+        response.body.pipe(res);
+    } catch (err) {
+        res.status(500).send('Error al descargar el archivo');
+    }
 });
 
 app.use('/map', mapRoutes);
@@ -806,7 +845,7 @@ app.post('/api/upscale-from-url', async (req, res) => {
 
         // REGLA: Solo 'upscaling_google_maps' envía imagen de referencia (tile de Google Maps).
         // Todos los demás modelos ('upscaling', 'upscaling_ndvi', etc.) trabajan SOLO con Sentinel-2.
-        const MODELS_WITH_REFERENCE = ['upscaling_google_maps'];
+        const MODELS_WITH_REFERENCE = ['upscaling_google_maps', 'building_footprint', 'Custom'];
         let referenceImage = MODELS_WITH_REFERENCE.includes(model) ? satellitePreviewUrl : null;
 
         console.log(`\n${'='.repeat(60)}`);

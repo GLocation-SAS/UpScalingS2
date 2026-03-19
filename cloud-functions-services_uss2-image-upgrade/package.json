@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Cloud Function para mejorar imágenes satelitales con Gemini y guardarlas en GCS.",
   "main": "index.js",
+  "scripts": {
+    "start": "functions-framework --target=image-upgrade"
+  },
   "author": "LC",
   "engines": {
     "node": ">=18"

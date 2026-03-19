@@ -150,6 +150,7 @@ http("image-upgrade", async (req, res) => {
         let generatedImageBuffer = null;
         let generatedMimeType = "image/png";
         let textoExplicativo = "";
+        let usageMetadata = null;
 
         for await (const chunk of responseStream) {
             // Verificamos si este chunk trae datos binarios (imagen)
@@ -162,6 +163,15 @@ http("image-upgrade", async (req, res) => {
             } else if (candidate?.text) {
                 textoExplicativo += candidate.text;
             }
+
+            // El último chunk contiene el uso total de tokens
+            if (chunk.usageMetadata) {
+                usageMetadata = chunk.usageMetadata;
+            }
+        }
+
+        if (usageMetadata) {
+            console.log(`[TOKENS] Input: ${usageMetadata.promptTokenCount} | Output: ${usageMetadata.candidatesTokenCount} | Total: ${usageMetadata.totalTokenCount}`);
         }
 
         if (!generatedImageBuffer) {
@@ -196,7 +206,12 @@ http("image-upgrade", async (req, res) => {
             success: true,
             gs_url: `gs://${env_vars.BUCKET_NAME}/${outputFileName}`,
             public_url: signedUrl,
-            comentario_ia: textoExplicativo // Por si el modelo dijo algo además de la imagen
+            comentario_ia: textoExplicativo, // Por si el modelo dijo algo además de la imagen
+            tokens: usageMetadata ? {
+                input: usageMetadata.promptTokenCount,
+                output: usageMetadata.candidatesTokenCount,
+                total: usageMetadata.totalTokenCount
+            } : null
         });
 
     } catch (error) {

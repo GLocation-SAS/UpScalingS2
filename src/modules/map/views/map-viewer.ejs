@@ -135,24 +135,33 @@
             </button>
             <div id="download-dropdown"
               class="absolute bottom-full mb-1 left-0 w-full hidden flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-xl overflow-hidden z-50">
-              <a href="<%= resultData.improvedTifUrl %>" download="mejorado_<%= jobId.substring(0,8) %>.tif"
+              <a href="/api/download?url=<%= encodeURIComponent(resultData.improvedTifUrl) %>&filename=mejorado_<%= jobId.substring(0,8) %>.tif"
                 class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all cursor-pointer text-center">Mejorado
                 (GeoTIFF)</a>
 
-              <a href="<%= resultData.improvedPngUrl %>" download="mejorado_<%= jobId.substring(0,8) %>.png"
+              <a href="/api/download?url=<%= encodeURIComponent(resultData.improvedPngUrl) %>&filename=mejorado_<%= jobId.substring(0,8) %>.png"
                 class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Mejorado
                 (PNG)</a>
 
-              <a href="<%= resultData.pureSentinelJpegUrl || resultData.originalJpegUrl %>"
-                download="original_<%= jobId.substring(0,8) %>.jpeg"
+              <a href="/api/download?url=<%= encodeURIComponent(resultData.pureSentinelJpegUrl || resultData.originalJpegUrl) %>&filename=original_<%= jobId.substring(0,8) %>.jpeg"
                 class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Original
                 Sentinel-2 (JPEG)</a>
 
               <% if (resultData.ndviJpegUrl) { %>
-                <a href="<%= resultData.ndviJpegUrl %>" download="ndvi_<%= jobId.substring(0,8) %>.jpeg"
+                <a href="/api/download?url=<%= encodeURIComponent(resultData.ndviJpegUrl) %>&filename=ndvi_<%= jobId.substring(0,8) %>.jpeg"
                   class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Mapa
                   NDVI (JPEG)</a>
-                <% } %>
+              <% } %>
+              <% if (resultData.satellitePreviewUrl) { %>
+                <a href="/api/download?url=<%= encodeURIComponent(resultData.satellitePreviewUrl) %>&filename=referencia_<%= jobId.substring(0,8) %>.jpeg"
+                  class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Google Maps
+                  (JPEG)</a>
+              <% } %>
+              <% if (resultData.satelliteTiffUrl) { %>
+                <a href="/api/download?url=<%= encodeURIComponent(resultData.satelliteTiffUrl) %>&filename=referencia_<%= jobId.substring(0,8) %>.tif"
+                  class="block p-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary dark:hover:text-white transition-all border-t border-slate-100 dark:border-slate-700 cursor-pointer text-center">Google Maps
+                  (GeoTIFF)</a>
+              <% } %>
             </div>
           </div>
         </div>
