@@ -511,7 +511,7 @@ Any reinterpretation of land cover beyond what is spectrally represented in the 
         let pureSentinelPublicUrl = originalPublicUrl;
         if (file.imageBuffer && file.buffer) {
             try {
-                const pureSentinelBuffer = await sharp(file.buffer).resize(1024, 1024, { fit: 'fill' }).jpeg({ quality: 80 }).toBuffer();
+                const pureSentinelBuffer = await sharp(file.buffer).resize(1024, 1024, { fit: 'inside' }).jpeg({ quality: 80 }).toBuffer();
                 const pureSentinelPath = `${BUCKET_BASE_PATH}/pure_sentinel_jpeg/${jobId}.jpeg`;
                 await uploadToDocs(pureSentinelBuffer, pureSentinelPath);
                 pureSentinelPublicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${pureSentinelPath}`;
@@ -644,20 +644,30 @@ Any reinterpretation of land cover beyond what is spectrally represented in the 
         const textCost = (totalTokens.output / 1_000_000) * GEMINI_OUTPUT_TEXT_PRICE_PER_M;
         const totalCost = inputCost + outputCost;
         console.log(`[RESULTS] 💰 Tokens Vertex AI — Input: ${totalTokens.input} | Output: ${totalTokens.output} | Total: ${totalTokens.total}`);
-        console.log(`[RESULTS] 💵 Costo estimado — Input: $${inputCost.toFixed(6)} | Output imagen: $${outputCost.toFixed(6)} | Output texto: $${textCost.toFixed(6)} | Total: $${totalCost.toFixed(6)} USD`);
+        console.log(`[RESULTS] 💵 Costo estimado — Input: $${inputCost.toFixed(6)} | Output imagen: $${outputCost.toFixed(6)} | Output texto: $${textCost.toFixed(6)} | Total: $${totalCost.toFixed(6)} USD | Área: ${areaKm2} km²`);
         console.log(`[RESULTS] 📐 Área procesada: ${areaKm2} km²`);
 
         let tilesAssembled = 0;
         updateJobProgress(jobId, { message: `Analizando y guardando resultados...`, processed: 0 });
         const inspectionPromises = upgradedResults.map(async (tileInfo, i) => {
             const response = await fetch(tileInfo.public_url);
-            const buffer = await response.buffer();
+            let buffer = await response.buffer();
             const improvedTileDestPath = `${BUCKET_BASE_PATH}/grillas_mejoradas/${jobId}/tile_${tiles[i].x}_${tiles[i].y}.png`;
             uploadToDocs(buffer, improvedTileDestPath).catch(err => console.error(`Fallo al subir grilla mejorada: ${err.message}`));
+
+            // Redimensionar el tile generado por la IA a las dimensiones originales del tile
+            // para preservar el aspecto ratio del área seleccionada
+            const originalTileW = tiles[i].width;
+            const originalTileH = tiles[i].height;
             const metadata = await sharp(buffer).metadata();
+            if (metadata.width !== originalTileW || metadata.height !== originalTileH) {
+                console.log(`[PROCESS] Corrigiendo aspecto ratio tile ${i}: ${metadata.width}x${metadata.height} → ${originalTileW}x${originalTileH}`);
+                buffer = await sharp(buffer).resize(originalTileW, originalTileH, { fit: 'fill' }).png().toBuffer();
+            }
+
             tilesAssembled++;
             updateJobProgress(jobId, { message: `Analizando resultado ${tilesAssembled}/${tiles.length}`, processed: tilesAssembled });
-            return { buffer, originalX: tiles[i].x, originalY: tiles[i].y, width: metadata.width, height: metadata.height };
+            return { buffer, originalX: tiles[i].x, originalY: tiles[i].y, width: originalTileW, height: originalTileH };
         });
         const inspectedTiles = await Promise.all(inspectionPromises);
 
@@ -669,9 +679,29 @@ Any reinterpretation of land cover beyond what is spectrally represented in the 
         const compositeArray = inspectedTiles.map(tile => ({ input: tile.buffer, left: positionMap.x[tile.originalX], top: positionMap.y[tile.originalY] }));
 
         updateJobProgress(jobId, { message: 'Generando archivos finales...' });
-        const finalCompositeImage = sharp({
+        let compositeBase = sharp({
             create: { width: finalWidth, height: finalHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
         }).composite(compositeArray);
+
+        // Corregir aspecto ratio usando las dimensiones reales del área seleccionada
+        if (scaleContext?.dimensions?.width && scaleContext?.dimensions?.height) {
+            const realW = scaleContext.dimensions.width;
+            const realH = scaleContext.dimensions.height;
+            const aspectRatio = realW / realH;
+            let targetW, targetH;
+            if (aspectRatio >= 1) {
+                targetW = 1024;
+                targetH = Math.round(1024 / aspectRatio);
+            } else {
+                targetH = 1024;
+                targetW = Math.round(1024 * aspectRatio);
+            }
+            console.log(`[PROCESS] Corrigiendo aspecto ratio: ${finalWidth}x${finalHeight} → ${targetW}x${targetH} (real: ${Math.round(realW)}m x ${Math.round(realH)}m)`);
+            const correctedBuffer = await compositeBase.png().toBuffer();
+            compositeBase = sharp(correctedBuffer).resize(targetW, targetH, { fit: 'fill' });
+        }
+
+        const finalCompositeImage = compositeBase;
 
         // Generar y subir el TIF para descarga
         const finalTifBuffer = await finalCompositeImage.clone().tiff({ quality: 100, compression: 'lzw' }).toBuffer();

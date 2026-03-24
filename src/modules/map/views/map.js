@@ -54,7 +54,7 @@ function handleJobProgress(jobId) {
 
       setTimeout(() => {
         window.location.href = `/map/result/${jobId}`;
-      }, 3000);
+      }, 5000);
     } else {
       updateProgress(data);
     }

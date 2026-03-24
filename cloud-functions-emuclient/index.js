@@ -72,12 +72,12 @@ functions.http('processSentinelImage', (req, res) => {
       // 2. Convertir TIFF a JPEG con sharp (todo en memoria)
       const jpegBuffer = await sharp(tiffBuffer)
         .resize(1024, 1024, {
-          fit: 'fill', // Escala sin mantener aspecto ratio para llenar 1024x1024
-          withoutEnlargement: false // Permite agrandar imágenes pequeñas
+          fit: 'inside', // Mantiene aspecto ratio, no supera 1024px en ningún lado
+          withoutEnlargement: false
         })
         .jpeg({ quality: 90 })
         .toBuffer();
-      console.log(`JPEG generado y escalado a 1024x1024: ${(jpegBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`JPEG generado (aspecto ratio preservado, máx 1024px): ${(jpegBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
       // 3. Guardar JPEG con nombre 'latest' (se reemplaza con cada nueva coordenada)
       const jpegFile = bucket.file(jpegFileName);
