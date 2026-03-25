@@ -1,0 +1,22 @@
+{
+  "name": "upscaling-batch-api",
+  "version": "1.0.0",
+  "description": "Batch API service for UpScaling satellite imagery with Gemini AI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.19.0",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
+    "form-data": "^4.0.5",
+    "geotiff": "^3.0.3",
+    "node-fetch": "^2.7.0",
+    "sharp": "^0.34.5"
+  }
+}
