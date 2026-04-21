@@ -5,6 +5,18 @@ const upscaleRoutes = require('./src/routes/upscale.routes');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    const allowed = ['http://localhost:9000', 'http://localhost:3000', 'http://localhost:8080'];
+    if (!origin || allowed.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.sendStatus(204); return; }
+    next();
+});
+
 app.use(express.json());
 
 app.use(upscaleRoutes);

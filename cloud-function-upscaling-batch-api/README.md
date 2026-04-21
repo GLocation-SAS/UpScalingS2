@@ -347,16 +347,36 @@ gcloud run deploy upscaling-batch-api --source . --region us-central1 --allow-un
 
 ## Modelos disponibles
 
+### Mejora fotorrealista
+
 | Modelo | Descripción | Usa Google Maps | Cuándo usarlo |
 |---|---|---|---|
 | `upscaling` | Mejora Sentinel-2 de 10m/px a ~1m/px equivalente. Fotorrealista. | ❌ | Caso de uso general |
 | `upscaling_google_maps` | Igual que `upscaling` pero con mosaico de Google Maps como referencia geográfica | ✅ | Cuando se necesita más precisión en límites urbanos |
 | `upscaling_ndvi` | Mejora el mapa de índice de vegetación NDVI. Preserva valores científicos. | ❌ | Análisis de cobertura vegetal |
-| `building_footprint` | Resalta huellas de edificios en rojo sobre la imagen | ✅ | Detección de construcciones |
+
+### Mapas temáticos GIS _(nuevos)_
+
+| Modelo | Descripción | Usa Google Maps | Cuándo usarlo |
+|---|---|---|---|
+| `construcciones` | Mapa coroplético de huellas de edificios. Cada edificio se colorea con un color sólido distinto (azul, naranja, teal, etc.) sobre fondo gris claro. Calles como corredores blancos. Inspirado en datasets de building footprints estilo NYC / OpenStreetMap. | ✅ | Visualización de tejido urbano y densidad edilicia |
+| `urbano_rural` | Clasificación supervisada de uso del suelo (LULC) al estilo teledetección. Cada categoría (urbano, bosque, cultivos, suelo desnudo, agua, pastizal) se renderiza con un color sólido único cubriendo toda la imagen. Fidelidad geométrica estricta al trazado real de manzanas y calles de la imagen de referencia. | ✅ | Análisis de cobertura y uso del suelo |
+| `conurbacion` | Mapa de morfología urbana que muestra múltiples núcleos urbanos separados, cada uno en una paleta de color distinta (zona A azul, zona B naranja, etc.), con línea negra gruesa en el límite entre núcleos. Fondo blanco en áreas no urbanizadas. Solo dibuja edificios donde realmente existen en la referencia. | ✅ | Análisis de conurbación y expansión urbana policéntrica |
+
+### Detección de elementos específicos
+
+| Modelo | Descripción | Usa Google Maps | Cuándo usarlo |
+|---|---|---|---|
+| `building_footprint` | Resalta huellas de edificios en rojo sobre la imagen | ✅ | Detección rápida de construcciones |
 | `ways` | Resalta carreteras y caminos en amarillo | ❌ | Análisis de infraestructura vial |
 | `forest` | Resalta zonas boscosas en verde vibrante | ❌ | Análisis de cobertura forestal |
 | `trees` | Resalta árboles individuales o pequeños grupos | ❌ | Análisis de vegetación urbana |
-| `Custom` | Prompt completamente personalizado | ✅ | Casos de uso específicos |
+
+### Personalizado
+
+| Modelo | Descripción | Usa Google Maps | Cuándo usarlo |
+|---|---|---|---|
+| `Custom` | Prompt completamente personalizado. Requiere campo `prompt` en el body. | ✅ | Casos de uso específicos no cubiertos por los modelos anteriores |
 
 ---
 

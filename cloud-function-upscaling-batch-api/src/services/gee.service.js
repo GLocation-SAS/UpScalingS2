@@ -1,11 +1,12 @@
 const fetch = require('node-fetch');
+const { log, logError, timer } = require('../utils/logger');
 
 const GEE_URL = process.env.GEE_URL;
 
 async function fetchGeeImage(date, geometry) {
-    console.log('[GEE] Iniciando fetchGeeImage');
-    console.log('[GEE] URL:', GEE_URL);
-    console.log('[GEE] Fecha:', date);
+    const t = timer();
+    log('GEE', `Iniciando solicitud — fecha: ${date}`);
+    log('GEE', `URL destino: ${GEE_URL}`);
 
     const payload = { date, geometry };
 
@@ -14,6 +15,8 @@ async function fetchGeeImage(date, geometry) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
+
+    log('GEE', `Respuesta HTTP ${response.status} — ${t.elapsed()}`);
 
     if (!response.ok) {
         let errorMessage = '';
@@ -28,11 +31,15 @@ async function fetchGeeImage(date, geometry) {
         } catch (e) {
             errorMessage = `Error HTTP ${response.status}: ${response.statusText}`;
         }
+        logError('GEE', `Falló — ${t.elapsed()} — ${errorMessage}`);
         throw new Error(`Error al conectar con GEE: ${errorMessage}`);
     }
 
     const result = await response.json();
-    console.log('[GEE] Respuesta recibida correctamente');
+    const jpegUrl = result.jpegUrl || result.imageUrl || result.image_url || result.public_url || 'N/A';
+    const geotiffUrl = result.geotiffUrl || 'N/A';
+    log('GEE', `✅ Completado — ${t.elapsed()} — jpegUrl: ${jpegUrl}`);
+    log('GEE', `geotiffUrl: ${geotiffUrl}, ndviJpegUrl: ${result.ndviJpegUrl || 'N/A'}`);
     return result;
 }
 
